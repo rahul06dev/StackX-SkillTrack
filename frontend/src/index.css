@@ -1,0 +1,818 @@
+/* Custom CSS to achieve the design from the image */
+@import "tailwindcss";
+/* 1. Full Page Background Gradient */
+/* This targets the main content area wrapper to give it the subtle gradient */
+.dashboard-page-bg {
+    /* The gradient color is a light, subtle mix, starting from a light pink/purple to a pale white */
+    background: linear-gradient(135deg, #fce0f5 0%, #ffffff 50%, #f0f4ff 100%);
+    min-height: 100vh;
+}
+
+/* 2. Sidebar Gradient Background (The very light pink/white on the left) */
+/* This targets the Sidebar component's main container */
+.sidebar-container {
+    background: linear-gradient(180deg, #fdf8ff 0%, #f6f0ff 100%);
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05); /* Soft shadow on the right edge */
+}
+
+.app-logo-icon-container {
+    background: linear-gradient(135deg, #f59685 0%, #a4508b 100%);
+    box-shadow: 0 5px 15px rgba(164, 80, 139, 0.3);
+}
+
+/* "Project Manager" Sub-text (Purple color) */
+.app-logo-subtext {
+    font-weight: 500;
+    color: #a4508b; /* Matching the purple shade in the icon/text */
+}
+
+
+/* 3. Welcome Header Custom Styling */
+/* To give the welcome message the pink/purple gradient and the shadow/blur effect */
+.welcome-heading {
+    /* Using the same gradient as the active dashboard button, but darker/more prominent */
+    background-image: linear-gradient(90deg, #7c3aed, #ec4899);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent; /* Makes the text color the gradient */
+    display: inline; /* Needed for background-clip to work well */
+}
+
+/* 4. Dashboard Stats Card Custom Colors and Shadows */
+/* Overriding or defining specific color gradients for the stats cards */
+
+/* Total Projects - Blue */
+.stats-card-total {
+    background: linear-gradient(45deg, #3b82f6, #2563eb);
+    box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+}
+.stats-card-total .stats-value {
+    /* For the +2 this week text */
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Active Tasks - Purple/Magenta */
+.stats-card-active {
+    background: linear-gradient(45deg, #9333ea, #c026d3);
+    box-shadow: 0 5px 15px rgba(147, 51, 234, 0.4);
+}
+
+/* Completed - Green */
+.stats-card-completed {
+    background: linear-gradient(45deg, #10b981, #059669);
+    box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+}
+
+/* Overdue - Red/Orange */
+.stats-card-overdue {
+    background: linear-gradient(45deg, #ef4444, #f97316);
+    box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+}
+
+
+/* 5. Main Content Cards (Your Projects, Upcoming Deadlines) */
+.main-content-card {
+    /* They appear to have a soft white background and a very subtle shadow */
+    background-color: #ffffff;
+    border-radius: 0.75rem; /* Equivalent to rounded-xl in Tailwind */
+    padding: 2.5rem; /* Larger padding than p-5 */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+}
+
+/* 6. Sidebar Navigation Items */
+
+/* The image shows a darker active state for the dashboard link */
+
+.nav-inactive:hover {
+    background-color: #f0f4ff; /* Lightest purple/blue on hover */
+    color: #6d28d9; /* Darker text color on hover */
+    border-radius: 0.5rem;
+}
+
+.nav-active {
+    background: linear-gradient(90deg, #b08dff, #d797f7); /* Lighter, contrasting gradient */
+    color: white;
+    border-radius: 0.5rem; /* Rounded corners for the active state */
+}
+
+/* ADD THIS CSS to make the icon and count bolder white/pink */
+.nav-active i, .nav-active span {
+    color: #ffffff;
+    /* Optional: give the '0' a slight bump to look like the pink square from the image */
+    background-color: rgba(255, 255, 255, 0.1); 
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+/* 7. User Section */
+.user-avatar {
+    background-color: #8b5cf6; /* A slightly darker purple for the user initial */
+}
+.user-info-text {
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 500; /* font-medium */
+}
+.logout-link {
+    font-size: 0.75rem; /* text-xs */
+    color: #9ca3af; /* gray-400 */
+}
+
+.user-avatar-bg {
+    background-color: #7c3aed; /* A deep purple */
+}
+
+/* User Name Text Style */
+.user-info-name {
+    color: #1f2937; /* Dark gray */
+}
+
+/* User Role Text Style (Purple) */
+.user-info-role {
+    color: #a4508b; /* Matching the purple used in the logo sub-text */
+}
+
+/* Logout Button Container */
+.logout-button {
+    /* Full-width container with a light border */
+    border: 1px solid #e5e7eb; /* gray-200 */
+    color: #6b7280; /* Text color gray */
+    background-color: #ffffff;
+}
+
+.logout-button:hover {
+    border-color: #d797f7; /* Purple hover border */
+    color: #7c3aed; /* Purple hover text */
+}
+
+/* Custom CSS for Project List Items (Matching the design) */
+
+.project-item-card {
+    /* Subtle border and background */
+    border: 1px solid #f3f4f6; /* gray-100 */
+    background-color: #ffffff;
+}
+
+/* Background for the Icon Square */
+.project-icon-bg {
+    /* A gentle gradient, similar to the active navigation item */
+    background: linear-gradient(135deg, #f7d2ff 0%, #b08dff 100%);
+    box-shadow: 0 4px 8px rgba(176, 141, 255, 0.2);
+}
+
+/* Hover Effect for the entire card to match the smooth design */
+.project-item-card:hover {
+    border-color: #d797f7; /* Light purple border on hover */
+    /* Lift the card slightly */
+    transform: translateY(-2px); 
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+.transition {
+    /* Ensure all transitions are smooth for hover effects */
+    transition: all 0.2s ease-in-out;
+}
+
+/* Custom CSS for ProjectsPage.tsx layout */
+
+/* Custom Project Page Header Text Gradient */
+.projects-heading {
+    background-image: linear-gradient(90deg, #7c3aed, #ec4899);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent; 
+    display: inline;
+}
+
+/* New Project Button Styling */
+.new-project-button {
+    background: linear-gradient(90deg, #b08dff, #d797f7);
+    color: white;
+    box-shadow: 0 4px 10px rgba(176, 141, 255, 0.4); 
+}
+.new-project-button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* 3-Column Grid Layout */
+.projects-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* Tailwind's grid-cols-3 */
+    gap: 1.5rem; /* Tailwind's gap-6 */
+}
+
+/* Custom CSS for Project List Items and Grid Cards */
+
+.project-card-layout {
+    /* Base styles for both list and grid cards */
+    background-color: #ffffff;
+    border: 1px solid #f3f4f6; /* gray-100 */
+    transition: all 0.2s ease-in-out;
+}
+
+/* 1. Dashboard List Card (Uses the icon) */
+.project-list-card {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+/* Background for the Icon Square (Only for the list view) */
+.project-icon-bg {
+    background: linear-gradient(135deg, #f7d2ff 0%, #b08dff 100%);
+    box-shadow: 0 4px 8px rgba(176, 141, 255, 0.2);
+    /* Dimensions handled by Tailwind (w-10 h-10) */
+}
+
+/* 2. Projects Grid Card (No icon, full-width design) */
+.project-grid-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    /* Added to match the design's inner block coloring */
+    padding-top: 1rem; /* Adjust padding for the header color block */
+    position: relative;
+    overflow: hidden;
+}
+
+/* COLOR BLOCK (The orange/pink header band on the grid cards) */
+.project-grid-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 10px; /* The height of the color band */
+    /* Default color: Orange/Pink gradient */
+    background: linear-gradient(90deg, #ff9580, #ff5e78); 
+}
+
+/* Hover Effect for the entire card */
+.project-card-layout:hover {
+    border-color: #d797f7; /* Light purple border on hover */
+    transform: translateY(-2px); 
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+
+/* Custom CSS for the Project Board (Kanban View) */
+
+/* ------------------------------------------- */
+/* Header & Layout Styles */
+/* ------------------------------------------- */
+
+.project-board-title {
+    /* Reuse the Projects page heading style (purple/pink gradient) */
+    background-image: linear-gradient(90deg, #7c3aed, #ec4899);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent; 
+    display: inline;
+}
+
+/* "Add Column" Button (Reuse New Project button style) */
+.add-column-button {
+    background: linear-gradient(90deg, #b08dff, #d797f7);
+    color: white;
+    box-shadow: 0 4px 10px rgba(176, 141, 255, 0.4); 
+}
+.add-column-button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* ------------------------------------------- */
+/* Kanban Board Grid & Columns */
+/* ------------------------------------------- */
+
+.kanban-board-grid {
+    display: grid;
+    /* 4 equally sized columns */
+    grid-template-columns: repeat(4, 1fr); 
+    gap: 1.5rem; /* gap-6 */
+}
+
+/* Base Column Styles */
+.kanban-column {
+    background-color: #f8f8ff; /* Very light background for the column body */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    min-height: 70vh; /* Ensure columns take up space */
+}
+
+/* Column Content Area */
+.column-content {
+    background-color: #ffffff;
+    border-radius: 0 0 0.75rem 0.75rem;
+}
+
+/* Add Task Button */
+.add-task-button {
+    background-color: #f3f4f6; /* light gray */
+    color: #4b5563; /* medium gray text */
+}
+.add-task-button:hover {
+    background-color: #e5e7eb;
+}
+
+/* ------------------------------------------- */
+/* Column Header Colors (Matching the design) */
+/* ------------------------------------------- */
+
+.column-todo .column-header {
+    background: linear-gradient(90deg, #3b82f6, #1e40af); /* Blue */
+}
+
+.column-in-progress .column-header {
+    background: linear-gradient(90deg, #9333ea, #6b21a8); /* Purple */
+}
+
+.column-review .column-header {
+    background: linear-gradient(90deg, #f97316, #ea580c); /* Orange */
+}
+
+.column-done .column-header {
+    background: linear-gradient(90deg, #10b981, #047857); /* Green */
+}
+
+
+/* ... existing styles remain the same ... */
+
+/* ------------------------------------------- */
+/* Task Input Form Styles */
+/* ------------------------------------------- */
+
+/* Task Input Field (Border matches the image) */
+.task-input-field {
+    border: 2px solid #ddd; /* default border */
+    /* Add focus style with purple glow */
+    outline: none;
+    transition: border-color 0.2s;
+    box-shadow: none; /* Resetting any default shadow */
+}
+
+/* Focused input field border and shadow (Matches the image's purple border) */
+.task-input-field:focus {
+    border-color: #8b5cf6; /* Tailwind's violet-500 or similar purple */
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3); /* Soft inner purple shadow */
+}
+
+/* Add Task Submit Button (Gradient and shadow) */
+.add-task-submit-button {
+    background: linear-gradient(90deg, #b08dff, #d797f7); /* Purple gradient */
+    color: white;
+    box-shadow: 0 2px 8px rgba(176, 141, 255, 0.4); 
+}
+.add-task-submit-button:hover {
+    opacity: 0.9;
+}
+
+/* Cancel Button (Simple X button) */
+.add-task-cancel-button {
+    background-color: #ffffff;
+    border: 1px solid #f3f4f6;
+    color: #4b5563;
+}
+.add-task-cancel-button:hover {
+    background-color: #fce0f5; /* light pink hover */
+}
+
+
+/* ------------------------------------------- */
+/* Task Card Styles */
+/* ------------------------------------------- */
+
+.task-card {
+    background-color: #ffffff;
+    border: 1px solid #f3f4f6; /* Light border */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.task-card:hover {
+    border-color: #ddd;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Priority Badge Base Style */
+.priority-badge {
+    text-transform: uppercase;
+    font-size: 0.65rem;
+}
+
+/* Priority Badge Colors (Matching the second image's yellow 'medium') */
+.priority-medium {
+    background-color: #fef3c7; /* light yellow/amber */
+    color: #92400e; /* dark amber text */
+    border: 1px solid #fcd34d; /* yellow border */
+}
+
+.priority-high {
+    background-color: #fee2e2; /* light red */
+    color: #b91c1c; /* dark red text */
+    border: 1px solid #f87171;
+}
+
+.priority-low {
+    background-color: #d1fae5; /* light green */
+    color: #065f46; /* dark green text */
+    border: 1px solid #34d399;
+}
+
+/* Custom CSS for TaskDetailModal.tsx */
+
+/* ------------------------------------------- */
+/* Modal Overlay and Container */
+/* ------------------------------------------- */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4); /* Dark semi-transparent background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* Ensure it's on top of everything */
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 1rem; /* rounded-xl */
+    width: 90%;
+    max-width: 800px; /* Standard modal width */
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    /* Fade-in animation */
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* ------------------------------------------- */
+/* Tabs Navigation */
+/* ------------------------------------------- */
+
+.modal-tabs {
+    /* Ensures the tabs are aligned correctly */
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.tab-button {
+    color: #6b7280;
+    position: relative;
+    /* Remove default button background/border */
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-bottom: -1px; /* Overlaps border subtly */
+}
+
+.tab-active {
+    color: #7c3aed; /* Purple active text */
+    border-bottom: 2px solid #7c3aed;
+}
+
+.tab-inactive:hover {
+    color: #4b5563;
+}
+
+
+/* ------------------------------------------- */
+/* Input Fields and Controls */
+/* ------------------------------------------- */
+
+.description-textarea {
+    border-color: #e5e7eb; /* light gray border */
+    transition: border-color 0.2s;
+}
+.description-textarea:focus {
+    border-color: #7c3aed; /* purple focus */
+    outline: none;
+}
+
+/* Styles for select and due date fields */
+.select-field {
+    border-color: #e5e7eb;
+}
+
+/* ------------------------------------------- */
+/* Time Tracking Button */
+/* ------------------------------------------- */
+
+.time-track-start-button {
+    background-color: #3b82f6; /* Blue background */
+    box-shadow: 0 2px 5px rgba(59, 130, 246, 0.3);
+}
+.time-track-start-button:hover {
+    background-color: #2563eb;
+}
+
+.time-display {
+    background-color: #f3f4f6; /* light gray background */
+    color: #4b5563; /* medium gray text */
+}
+
+/* ------------------------------------------- */
+/* Footer Action Buttons */
+/* ------------------------------------------- */
+
+/* Delete Button */
+.delete-task-button {
+    border: 1px solid #f87171; /* Red border */
+    color: #ef4444; /* Red text */
+    background-color: #ffffff;
+}
+.delete-task-button:hover {
+    background-color: #fcebeb; /* Light red hover background */
+}
+
+/* Save Changes Button (Purple Gradient) */
+.save-changes-button {
+    background: linear-gradient(90deg, #b08dff, #d797f7); /* Purple gradient */
+    box-shadow: 0 4px 10px rgba(176, 141, 255, 0.4); 
+}
+.save-changes-button:hover {
+    opacity: 0.9;
+}
+
+/* ... existing styles remain the same ... */
+
+/* ------------------------------------------- */
+/* Due Date & Calendar Popup */
+/* ------------------------------------------- */
+
+/* Due Date Button (The container that shows the selected date) */
+.due-date-button {
+    /* Style the button container when it is the date field */
+    min-height: 40px; /* Ensure consistent height */
+    background-color: white; 
+}
+
+/* Calendar Popup Container */
+.calendar-popup {
+    background-color: white;
+    border: 1px solid #e5e7eb; /* Light border */
+    z-index: 1010; /* Above the modal content */
+    width: 280px; /* Fixed width for the calendar */
+    transform-origin: top left;
+}
+
+/* Calendar Header Arrows */
+.calendar-arrow {
+    padding: 0.5rem;
+    color: #9ca3af;
+    transition: color 0.2s;
+}
+.calendar-arrow:hover {
+    color: #4b5563;
+}
+
+/* Calendar Grid */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    gap: 0.1rem;
+}
+
+.day-header, .day-cell {
+    width: 100%;
+    aspect-ratio: 1 / 1; /* Make cells square */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.day-cell {
+    padding: 0;
+    border-radius: 9999px; /* Fully rounded */
+    cursor: pointer;
+    background: none;
+    border: none;
+    transition: background-color 0.15s;
+}
+
+.day-cell:hover:not(:disabled) {
+    background-color: #f3f4f6; /* light gray hover */
+}
+
+/* Selected Date */
+.day-selected {
+    background-color: #3b82f6 !important; /* Blue background */
+    color: white !important;
+    font-weight: 600;
+}
+
+/* Today's Date (Style it slightly differently if needed) */
+.day-today {
+    border: 1px solid #3b82f6;
+    color: #3b82f6;
+}
+
+.day-cell:disabled {
+    cursor: default;
+}
+
+.calendar-popup-above {
+    bottom: 100%; /* Align the bottom edge of the popup with the top edge of the button */
+    margin-bottom: 0.5rem; /* Add spacing (equivalent to mt-2) */
+    
+    /* Change transform-origin to bottom left for a cleaner animation */
+    transform-origin: bottom left;
+}
+
+/* Custom CSS for TaskDetailModal.tsx (Attachments Tab) */
+
+/* ------------------------------------------- */
+/* Attachment Dropzone Styles */
+/* ------------------------------------------- */
+
+.attachment-dropzone {
+    /* Styles to match the dashed-line box */
+    border: 3px dashed #d797f7; /* Light purple/pink dashed border */
+    border-radius: 0.75rem; /* rounded-xl */
+    background-color: #fcfaff; /* Very light background inside the box */
+    /* Adjustments for the hover/drag-over state */
+    transition: all 0.2s ease-in-out;
+}
+
+/* Style for the central icon (the upward arrow) */
+.attachment-dropzone .upload-icon {
+    /* Use a gradient or a specific purple color for the icon */
+    background-image: linear-gradient(0deg, #b08dff, #d797f7);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent; 
+}
+
+/* Drag-Over/Active State */
+.attachment-dropzone.attachment-drop-active,
+.attachment-dropzone:hover {
+    /* Slightly darker border and lift effect */
+    border-color: #7c3aed; /* Darker purple on hover/drag */
+    background-color: #f7f3ff; /* Lighter purple background on hover */
+    box-shadow: 0 0 15px rgba(124, 58, 237, 0.1);
+}
+
+/* ------------------------------------------- */
+/* Attachment List Styles (For when files are uploaded) */
+/* ------------------------------------------- */
+
+.attachment-item {
+    /* Soft border and shadow for each file row */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Custom CSS for TaskDetailModal.tsx (Comments Tab) */
+
+/* ------------------------------------------- */
+/* Comment Input Area */
+/* ------------------------------------------- */
+
+/* Textarea styling for comment input */
+.comment-textarea {
+    border-color: #e5e7eb; /* light gray border */
+    /* Match the subtle curve of the input in the screenshot */
+    border-radius: 0.75rem; /* rounded-xl */
+    /* Remove default focus outline and apply custom focus */
+    outline: none;
+    transition: border-color 0.2s;
+}
+.comment-textarea:focus {
+    border-color: #a4508b; /* Purple border on focus */
+}
+
+/* Send Button (The light purple/blue square) */
+.comment-send-button {
+    /* Purple/Blue Gradient for the button */
+    background: linear-gradient(90deg, #b08dff, #7c3aed); 
+    box-shadow: 0 4px 10px rgba(124, 58, 237, 0.4); 
+    transition: opacity 0.2s;
+}
+.comment-send-button:hover:not(:disabled) {
+    opacity: 0.9;
+}
+.comment-send-button:disabled {
+    background: #d1d5db; /* Gray background when disabled */
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* ------------------------------------------- */
+/* Comment List Item */
+/* ------------------------------------------- */
+
+/* User Avatar (The purple circle with the initial) */
+.user-avatar-comment {
+    background-color: #a4508b; /* The specific purple color from the screenshot */
+    /* Ensure the text is centered */
+    line-height: 1; 
+}
+
+
+/* Custom CSS for AddColumnModal.tsx */
+
+/* ------------------------------------------- */
+/* Modal Size */
+/* ------------------------------------------- */
+
+/* A new class for a smaller modal width (matching the screenshot size) */
+.modal-content-small {
+    max-width: 550px; /* Adjust to fit the form content */
+}
+
+/* ------------------------------------------- */
+/* Column Title Input */
+/* ------------------------------------------- */
+.column-title-input {
+    /* Subtle shadow and border */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Focus state matching the purple/black border */
+.column-title-input:focus {
+    border-color: #000000; /* Black border on focus */
+    box-shadow: 0 0 0 2px #d797f7, 0 0 0 4px #a4508b; /* Purple glow/ring effect */
+    outline: none;
+}
+
+/* ------------------------------------------- */
+/* Color Swatches and Themes */
+/* ------------------------------------------- */
+
+.color-swatch-button {
+    background-color: #ffffff; /* White background for all swatches */
+    border: 3px solid transparent; /* Reserve space for border */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+.color-swatch-button:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Selected Swatch (The purple outline) */
+.swatch-selected {
+    /* The distinctive purple gradient border from the screenshot */
+    border-color: #ffffff; /* White center for the border */
+    /* Custom ring to match the purple glow */
+    box-shadow: 0 0 0 3px #d797f7, 0 0 0 6px rgba(164, 80, 139, 0.4); 
+}
+
+/* Color Theme Gradients (Must match the image exactly) */
+
+.theme-blue {
+    background: linear-gradient(135deg, #4299E1, #3182CE); /* Tailwind blue shades */
+}
+.theme-purple {
+    background: linear-gradient(135deg, #9F7AEA, #805AD5); /* Tailwind purple shades */
+}
+.theme-pink {
+    background: linear-gradient(135deg, #F687B3, #ED64A6); /* Tailwind pink shades */
+}
+.theme-green {
+    background: linear-gradient(135deg, #68D391, #48BB78); /* Tailwind green shades */
+}
+.theme-orange {
+    background: linear-gradient(135deg, #F6AD55, #ED8936); /* Tailwind orange shades */
+}
+.theme-red {
+    background: linear-gradient(135deg, #F56565, #E53E3E); /* Tailwind red shades */
+}
+.theme-teal {
+    background: linear-gradient(135deg, #4FD1C5, #38B2AC); /* Tailwind teal shades */
+}
+.theme-indigo {
+    background: linear-gradient(135deg, #818CF8, #6366F1); /* Tailwind indigo shades */
+}
+
+
+/* ------------------------------------------- */
+/* Footer Buttons */
+/* ------------------------------------------- */
+
+/* Cancel Button */
+.cancel-button {
+    border: 1px solid #d1d5db; /* Gray border */
+}
+
+/* Create Column Button (Same style as Save Changes/New Project buttons) */
+.create-column-button {
+    background: linear-gradient(90deg, #b08dff, #d797f7); /* Purple gradient */
+    box-shadow: 0 4px 10px rgba(176, 141, 255, 0.4); 
+}
+.create-column-button:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+.create-column-button:disabled {
+    background: #d1d5db;
+    cursor: not-allowed;
+    box-shadow: none;
+}
