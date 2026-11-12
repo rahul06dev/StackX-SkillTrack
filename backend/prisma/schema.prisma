@@ -188,6 +188,7 @@ model Skill {
 
   projectSkills ProjectSkill[]
   studentSkills StudentSkill[]
+  jobRoleSkills JobRoleSkill[]
 }
 
 model ProjectSkill {
@@ -238,4 +239,35 @@ model StudentSkillEvidence {
   @@unique([studentSkillId, projectId])
   @@index([studentSkillId])
   @@index([projectId])
+}
+
+// =============================
+// JOB ROLES & REQUIRED SKILLS
+// =============================
+
+model JobRole {
+  id          String   @id @default(uuid())
+  title       String   @unique
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requiredSkills JobRoleSkill[]
+
+  @@index([isActive])
+}
+
+model JobRoleSkill {
+  id        String   @id @default(uuid())
+  jobRoleId String
+  skillId   String
+  createdAt DateTime @default(now())
+
+  jobRole JobRole @relation(fields: [jobRoleId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobRoleId, skillId])
+  @@index([jobRoleId])
+  @@index([skillId])
 }

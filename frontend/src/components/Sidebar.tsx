@@ -1,9 +1,10 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import LogoutButton from './LogoutButton';
 
 interface SidebarProps {
-  activeTab?: 'dashboard' | 'projects' | 'skills';
+  activeTab?: 'dashboard' | 'projects' | 'skills' | 'job-roles' | 'talent-search';
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -11,50 +12,37 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const userData = localStorage.getItem('user');
   const user = userData ? JSON.parse(userData) : null;
+  const isAdmin = user?.role === 'ADMIN';
 
   const getNavClass = (
-    tabName: 'dashboard' | 'projects' | 'skills'
-  ) => {
-    return tabName === activeTab
+    tabName: 'dashboard' | 'projects' | 'skills' | 'job-roles' | 'talent-search'
+  ) =>
+    tabName === activeTab
       ? 'skilltrack-nav-item active'
       : 'skilltrack-nav-item';
-  };
 
-  const projectsPath =
-    user?.role === 'ADMIN'
-      ? '/admin/projects'
-      : '/projects';
+  const projectsPath = isAdmin ? '/admin/projects' : '/projects';
 
   return (
     <aside className="skilltrack-sidebar">
-
-      {/* Logo */}
       <div>
-
         <div className="skilltrack-logo">
           <div className="skilltrack-logo-icon">
             <i className="fa fa-layer-group"></i>
           </div>
-
           <div>
             <h2>SkillTrack</h2>
             <p>StackX</p>
           </div>
         </div>
 
-        {/* Navigation */}
         <div className="skilltrack-nav-section">
-
-          <p className="skilltrack-nav-title">
-            Navigation
-          </p>
+          <p className="skilltrack-nav-title">Navigation</p>
 
           <nav>
-
-            {/* Dashboard */}
             <Link
               to={
-                user?.role === 'ADMIN'
+                isAdmin
                   ? '/admin'
                   : user?.role === 'FACULTY'
                   ? '/faculty'
@@ -66,7 +54,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span>Dashboard</span>
             </Link>
 
-            {/* Projects */}
             <Link
               to={projectsPath}
               className={getNavClass('projects')}
@@ -75,52 +62,55 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span>Projects</span>
             </Link>
 
-            {/* Skills - Admin Only */}
-            {user?.role === 'ADMIN' && (
-              <Link
-                to="/admin/skills"
-                className={getNavClass('skills')}
-              >
-                <i className="fa fa-award"></i>
-                <span>Skills</span>
-              </Link>
+            {isAdmin && (
+              <>
+                <Link
+                  to="/admin/skills"
+                  className={getNavClass('skills')}
+                >
+                  <i className="fa fa-award"></i>
+                  <span>Skills Catalogue</span>
+                </Link>
+
+                <Link
+                  to="/admin/job-roles"
+                  className={getNavClass('job-roles')}
+                >
+                  <i className="fa fa-briefcase"></i>
+                  <span>Job Roles</span>
+                </Link>
+
+                <Link
+                  to="/admin/talent-search"
+                  className={getNavClass('talent-search')}
+                >
+                  <i className="fa fa-search"></i>
+                  <span>Talent Search</span>
+                </Link>
+              </>
             )}
-
           </nav>
-
         </div>
-
       </div>
 
-      {/* User Section */}
       <div className="skilltrack-user-section">
-
         <div className="skilltrack-user">
-
           <div className="skilltrack-avatar">
-            {user?.name
-              ? user.name.charAt(0).toUpperCase()
-              : 'U'}
+            {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
           </div>
 
           <div className="skilltrack-user-info">
-
             <span className="skilltrack-user-name">
               {user?.name || 'User'}
             </span>
-
             <span className="skilltrack-user-role">
               {user?.role || 'User'}
             </span>
-
           </div>
-
         </div>
 
         <LogoutButton />
-
       </div>
-
     </aside>
   );
 };

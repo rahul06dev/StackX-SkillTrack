@@ -42,6 +42,20 @@ const StudentDashboard = () => {
     columnTitle: string;
   }
 
+  interface SkillProject {
+    id: string;
+    title: string;
+    status: string;
+  }
+
+  interface ProfileSkill {
+    id: string;
+    name: string;
+    category: string | null;
+    description: string | null;
+    projects: SkillProject[];
+  }
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
 
@@ -53,6 +67,9 @@ const StudentDashboard = () => {
 
   const [loadingDeadlines, setLoadingDeadlines] =
     useState(true);
+
+  const [skills, setSkills] = useState<ProfileSkill[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(true);
 
   useEffect(() => {
 
@@ -171,6 +188,41 @@ const StudentDashboard = () => {
     fetchUpcomingDeadlines();
   }, []);
 
+  useEffect(() => {
+    const fetchSkills = async () => {
+      try {
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+          throw new Error('Authentication token not found');
+        }
+
+        const response = await fetch(
+          'http://localhost:4300/api/student-skills/me',
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch student skills');
+        }
+
+        const data = await response.json();
+        setSkills(data.skills ?? []);
+      } catch (error) {
+        console.error('Failed to load student skills:', error);
+        setSkills([]);
+      } finally {
+        setLoadingSkills(false);
+      }
+    };
+
+    fetchSkills();
+  }, []);
+
   return (
     <div className="student-page">
 
@@ -225,9 +277,87 @@ const StudentDashboard = () => {
 
           <div className="student-stat-card">
             <h3>Skills</h3>
-            <p>0</p>
+            <p>{loadingSkills ? '...' : skills.length}</p>
           </div>
 
+        </section>
+
+        {/* Skills Profile */}
+        <section className="student-section">
+          <div className="student-section-header">
+            <div>
+              <h2>My Skills</h2>
+              <p className="skills-section-subtitle">
+                Skills connected to your assigned projects.
+              </p>
+            </div>
+          </div>
+
+          {loadingSkills ? (
+            <div className="student-empty-state">
+              <h3>Loading your skills...</h3>
+              <p>Your skills profile is being prepared.</p>
+            </div>
+          ) : skills.length === 0 ? (
+            <div className="student-empty-state">
+              <h3>No skills mapped yet</h3>
+              <p>
+                Skills will appear here when they match the
+                catalogue skills associated with your projects.
+              </p>
+            </div>
+          ) : (
+            <div className="student-skills-grid">
+              {skills.map((skill) => (
+                <article className="student-skill-card" key={skill.id}>
+                  <div className="student-skill-card-top">
+                    <div className="student-skill-icon">
+                      <i className="fa fa-code"></i>
+                    </div>
+
+                    <span className="student-skill-category">
+                      {skill.category || 'General'}
+                    </span>
+                  </div>
+
+                  <h3>{skill.name}</h3>
+
+                  <p className="student-skill-description">
+                    {skill.description || 'A skill connected to your project work.'}
+                  </p>
+
+                  <div className="student-skill-evidence">
+                    <strong>
+                      Project evidence ({skill.projects.length})
+                    </strong>
+
+                    {skill.projects.map((project) => (
+                      <div
+                        className="student-skill-project"
+                        key={project.id}
+                      >
+                        <div>
+                          <i className="fa fa-folder-open"></i>
+                          <span>{project.title}</span>
+                        </div>
+
+                        <span
+                          className={`student-skill-status ${project.status === 'COMPLETED'
+                              ? 'completed'
+                              : 'active'
+                            }`}
+                        >
+                          {project.status === 'COMPLETED'
+                            ? 'Completed'
+                            : 'Active'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Projects */}

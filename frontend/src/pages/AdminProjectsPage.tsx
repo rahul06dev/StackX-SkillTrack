@@ -1,6 +1,8 @@
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
+import CreateProjectModal from '../components/CreateProjectModal';
 import '../auth.css';
 
 interface ProjectPerson {
@@ -33,59 +35,66 @@ const AdminProjectsPage: React.FC = () => {
 
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
-
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] =
         useState<StatusFilter>('ALL');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const fetchProjects = async () => {
+        try {
+            const token = localStorage.getItem('token');
+
+            if (!token) {
+                throw new Error('Authentication token not found');
+            }
+
+            const response = await fetch(
+                `${API_BASE_URL}/api/projects/admin/projects`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `Failed to fetch projects: ${response.status}`
+                );
+            }
+
+            const data: Project[] = await response.json();
+            setProjects(data);
+        } catch (error) {
+            console.error('Failed to load admin projects:', error);
+            setProjects([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchProjects = async () => {
-            try {
-                const token = localStorage.getItem('token');
-
-                if (!token) {
-                    throw new Error('Authentication token not found');
-                }
-
-                const response = await fetch(
-                    `${API_BASE_URL}/api/projects/admin/projects`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error('Failed to fetch projects');
-                }
-
-                const data: Project[] = await response.json();
-
-                setProjects(data);
-            } catch (error) {
-                console.error(
-                    'Failed to load admin projects:',
-                    error
-                );
-
-                setProjects([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchProjects();
     }, []);
 
-    /* Search */
+    const handleProjectCreated = async (_newProject: Project) => {
+        setIsModalOpen(false);
+        await fetchProjects();
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+    };
+
     const filteredProjects = useMemo(() => {
         const normalizedSearch = searchTerm.trim().toLowerCase();
 
         const matchesWordStart = (text: string) => {
+            if (!normalizedSearch) return true;
+
             const words = text
                 .toLowerCase()
-                .split(/[\s\-_.,!?()[\]{}:;]+/)
+                .split(/[\s\-_. ,!?()[\]{}:;]+/)
                 .filter(Boolean);
 
             return words.some((word) =>
@@ -93,39 +102,17 @@ const AdminProjectsPage: React.FC = () => {
             );
         };
 
-        const statusMatches = (project: Project) => {
-            return (
+        return projects.filter((project) => {
+            const statusMatches =
                 statusFilter === 'ALL' ||
-                project.status === statusFilter
-            );
-        };
+                project.status === statusFilter;
 
-        const statusFilteredProjects = projects.filter(statusMatches);
+            const searchMatches =
+                matchesWordStart(project.title) ||
+                matchesWordStart(project.description || '');
 
-        if (!normalizedSearch) {
-            return statusFilteredProjects;
-        }
-
-        const titleMatches = statusFilteredProjects.filter((project) =>
-            matchesWordStart(project.title)
-        );
-
-        const descriptionMatches = statusFilteredProjects.filter((project) => {
-            const titleMatchesSearch = matchesWordStart(project.title);
-            const descriptionMatchesSearch = matchesWordStart(
-                project.description
-            );
-
-            return (
-                !titleMatchesSearch &&
-                descriptionMatchesSearch
-            );
+            return statusMatches && searchMatches;
         });
-
-        return [
-            ...titleMatches,
-            ...descriptionMatches,
-        ];
     }, [projects, searchTerm, statusFilter]);
 
     const clearSearch = () => {
@@ -137,8 +124,6 @@ const AdminProjectsPage: React.FC = () => {
             <Sidebar activeTab="projects" />
 
             <main className="admin-main">
-
-                {/* Page Header */}
                 <header className="admin-header">
                     <div>
                         <h1>All Projects</h1>
@@ -149,27 +134,24 @@ const AdminProjectsPage: React.FC = () => {
                     </div>
 
                     <button
+                        type="button"
                         className="admin-primary-button"
-                        onClick={() => {
-                            console.log('Create project clicked');
-                        }}
+                        onClick={() => setIsModalOpen(true)}
                     >
-                        <i className="fa fa-plus"></i>
+                        <i className="fa fa-plus" />
                         New Project
                     </button>
                 </header>
 
-                {/* Search & Filters */}
                 <section className="admin-project-toolbar">
-
                     <div className="admin-project-search">
-                        <i className="fa fa-search"></i>
+                        <i className="fa fa-search" />
 
                         <input
                             type="text"
                             value={searchTerm}
-                            onChange={(e) =>
-                                setSearchTerm(e.target.value)
+                            onChange={(event) =>
+                                setSearchTerm(event.target.value)
                             }
                             placeholder="Search projects..."
                             aria-label="Search projects"
@@ -182,30 +164,27 @@ const AdminProjectsPage: React.FC = () => {
                                 className="admin-project-search-clear"
                                 aria-label="Clear search"
                             >
-                                <i className="fa fa-times"></i>
+                                <i className="fa fa-times" />
                             </button>
                         )}
                     </div>
 
                     <select
                         value={statusFilter}
-                        onChange={(e) =>
+                        onChange={(event) =>
                             setStatusFilter(
-                                e.target.value as StatusFilter
+                                event.target.value as StatusFilter
                             )
                         }
                         className="admin-project-filter"
+                        aria-label="Filter projects by status"
                     >
                         <option value="ALL">All Status</option>
                         <option value="ACTIVE">Active</option>
-                        <option value="COMPLETED">
-                            Completed
-                        </option>
+                        <option value="COMPLETED">Completed</option>
                     </select>
-
                 </section>
 
-                {/* Project Count */}
                 <div className="admin-projects-heading">
                     <h2>Projects</h2>
 
@@ -219,19 +198,16 @@ const AdminProjectsPage: React.FC = () => {
                     )}
                 </div>
 
-                {/* Project Content */}
                 {loading ? (
                     <div className="admin-empty-state">
                         <h3>Loading projects...</h3>
                         <p>
-                            Please wait while projects are being
-                            loaded.
+                            Please wait while projects are being loaded.
                         </p>
                     </div>
                 ) : filteredProjects.length === 0 ? (
                     <div className="admin-empty-state">
-
-                        <i className="fa fa-folder-open"></i>
+                        <i className="fa fa-folder-open" />
 
                         <h3>
                             {searchTerm
@@ -255,10 +231,19 @@ const AdminProjectsPage: React.FC = () => {
                             </button>
                         )}
 
+                        {!searchTerm && (
+                            <button
+                                type="button"
+                                onClick={() => setIsModalOpen(true)}
+                                className="admin-primary-button"
+                            >
+                                <i className="fa fa-plus" />
+                                Create Project
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="admin-project-management-list">
-
                         {filteredProjects.map((project) => (
                             <div
                                 key={project.id}
@@ -266,10 +251,23 @@ const AdminProjectsPage: React.FC = () => {
                                 onClick={() =>
                                     navigate(`/projects/${project.id}`)
                                 }
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(event) => {
+                                    if (
+                                        event.key === 'Enter' ||
+                                        event.key === ' '
+                                    ) {
+                                        event.preventDefault();
+                                        navigate(
+                                            `/projects/${project.id}`
+                                        );
+                                    }
+                                }}
                             >
                                 <div className="admin-management-project-main">
                                     <div className="admin-management-project-icon">
-                                        <i className="fa fa-folder-open"></i>
+                                        <i className="fa fa-folder-open" />
                                     </div>
 
                                     <div className="admin-management-project-info">
@@ -282,34 +280,38 @@ const AdminProjectsPage: React.FC = () => {
 
                                         <div className="admin-management-project-stats">
                                             <span>
-                                                <i className="fa fa-tasks"></i>
-                                                {project.tasksCount} Tasks
+                                                <i className="fa fa-tasks" />
+                                                {project.tasksCount ?? 0} Tasks
                                             </span>
 
                                             <span>
-                                                <i className="fa fa-users"></i>
-                                                {project.peopleCount} People
+                                                <i className="fa fa-users" />
+                                                {project.peopleCount ?? 0} People
                                             </span>
 
                                             <span
-                                                className={`admin-project-status ${project.status.toLowerCase()}`}
+                                                className={`admin-project-status ${(project.status || 'ACTIVE').toLowerCase()}`}
                                             >
-                                                {project.status}
+                                                {project.status || 'ACTIVE'}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="admin-management-project-arrow">
-                                    <i className="fa fa-chevron-right"></i>
+                                    <i className="fa fa-chevron-right" />
                                 </div>
                             </div>
                         ))}
-
                     </div>
                 )}
-
             </main>
+
+            <CreateProjectModal
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+                onProjectCreated={handleProjectCreated}
+            />
         </div>
     );
 };

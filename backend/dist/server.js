@@ -11,6 +11,9 @@ import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import skillRoutes from './routes/skillRoutes.js';
 import projectSkillRoutes from './routes/projectSkillRoutes.js';
+import studentSkillsRoutes from './routes/studentSkillsRoutes.js';
+import jobRoleRoutes from './routes/jobRoleRoutes.js';
+import talentSearchRoutes from './routes/talentSearchRoutes.js';
 dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
@@ -45,6 +48,9 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/project-skills', projectSkillRoutes);
+app.use('/api/student-skills', studentSkillsRoutes);
+app.use('/api/job-roles', jobRoleRoutes);
+app.use('/api/talent-search', talentSearchRoutes);
 // --- Server Startup ---
 try {
     // await prisma.$connect(); 

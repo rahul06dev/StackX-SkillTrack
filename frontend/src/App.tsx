@@ -14,6 +14,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import RoleRedirect from './components/RoleRedirect';
 import AdminProjectsPage from './pages/AdminProjectsPage';
 import AdminSkillsPage from './pages/AdminSkillsPage';
+import AdminJobRolesPage from './pages/AdminJobRolesPage';
+import AdminTalentSearchPage from './pages/AdminTalentSearchPage';
 
 const App = () => {
   return (
@@ -64,6 +66,24 @@ const App = () => {
           element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <AdminSkillsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/job-roles"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminJobRolesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/talent-search"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminTalentSearchPage />
             </ProtectedRoute>
           }
         />

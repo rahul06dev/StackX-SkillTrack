@@ -728,28 +728,67 @@ router.put(
 
 // --- Project POST Route (Create New Project) ---
 // --- Project POST Route (Create New Project) ---
+// --- Project POST Route (Create New Project) ---
+// Automatically maps matching skills to new projects.
+
 router.post(
   '/',
   authenticateUser,
   authorizeRoles('FACULTY', 'ADMIN'),
   async (req: AuthenticatedRequest, res) => {
-    console.log('POST /api/projects called with body:', req.body);
-
     const { title, description, studentIds } = req.body;
 
-    if (!title || !description) {
+    if (
+      typeof title !== 'string' ||
+      !title.trim() ||
+      typeof description !== 'string' ||
+      !description.trim()
+    ) {
       return res.status(400).json({
         message: 'Title and description are required.',
       });
     }
 
     try {
+      const projectText = `${title} ${description}`;
+
+      // Fetch active skills from the Admin-managed catalogue.
+      const activeSkills = await prisma.skill.findMany({
+        where: {
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      // Match complete skill names, ignoring letter case.
+      // Spaces in multi-word skill names may vary.
+      const matchedSkills = activeSkills.filter((skill) => {
+        const escapedName = skill.name
+          .trim()
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          .replace(/\s+/g, '\\s+');
+
+        if (!escapedName) {
+          return false;
+        }
+
+        const pattern = new RegExp(
+          `(^|[^a-zA-Z0-9])${escapedName}($|[^a-zA-Z0-9])`,
+          'i'
+        );
+
+        return pattern.test(projectText);
+      });
+
       const newProject = await prisma.project.create({
         data: {
-          title,
-          description,
+          title: title.trim(),
+          description: description.trim(),
 
-          createdById: req.user?.id,
+          createdById: req.user!.id,
 
           students: {
             create: Array.isArray(studentIds)
@@ -763,7 +802,18 @@ router.post(
               : [],
           },
 
-          // Create the default Kanban workflow columns
+          // Automatically attach matching catalogue skills.
+          projectSkills: {
+            create: matchedSkills.map((skill) => ({
+              skill: {
+                connect: {
+                  id: skill.id,
+                },
+              },
+            })),
+          },
+
+          // Preserve the existing default Kanban columns.
           columns: {
             create: [
               {
@@ -792,28 +842,45 @@ router.post(
 
         include: {
           students: true,
+
           columns: {
             orderBy: {
               order: 'asc',
             },
           },
+
+          projectSkills: {
+            include: {
+              skill: {
+                select: {
+                  id: true,
+                  name: true,
+                  category: true,
+                },
+              },
+            },
+          },
         },
       });
 
-      res.status(201).json({
+      return res.status(201).json({
         id: newProject.id,
         title: newProject.title,
         description: newProject.description,
         tasks: newProject.tasksCount,
         members: newProject.membersCount,
         columns: newProject.columns,
+
+        // Skills matched automatically.
+        matchedSkills: newProject.projectSkills.map(
+          (projectSkill) => projectSkill.skill
+        ),
       });
     } catch (error) {
-      console.error('❌ Error creating project:', error);
+      console.error('Error creating project:', error);
 
-      res.status(500).json({
-        message: 'Failed to create project',
-        error,
+      return res.status(500).json({
+        message: 'Failed to create project.',
       });
     }
   }
