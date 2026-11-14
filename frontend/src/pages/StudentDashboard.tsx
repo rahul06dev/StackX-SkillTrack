@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import NotificationBell from '../components/NotificationBell';
@@ -10,6 +10,13 @@ const StudentDashboard = () => {
 
   const userData = localStorage.getItem('user');
   const user = userData ? JSON.parse(userData) : null;
+
+  interface ProjectSkillInfo {
+    id: string;
+    name: string;
+    category?: string | null;
+    description?: string | null;
+  }
 
   interface Project {
     id: string;
@@ -24,6 +31,7 @@ const StudentDashboard = () => {
       name: string;
       email: string;
     } | null;
+    skills?: ProjectSkillInfo[];
   }
 
   interface NewTask {
@@ -140,14 +148,16 @@ const StudentDashboard = () => {
   const [skillFilterTab, setSkillFilterTab] = useState<'all' | 'verified' | 'pending' | 'rejected' | 'exposure'>('all');
   const [loadingSkills, setLoadingSkills] = useState(true);
 
-  // Claim skill modal state
+  // Multi-Project Evidence Skill Claim Modal State
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [availableSkills, setAvailableSkills] = useState<AvailableSkill[]>([]);
-  const [claimSkillId, setClaimSkillId] = useState('');
-  const [claimProjectId, setClaimProjectId] = useState('');
-  const [claimLevel, setClaimLevel] = useState('INTERMEDIATE');
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [claimLevel, setClaimLevel] = useState<string>('INTERMEDIATE');
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimMessage, setClaimMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [loadingProjectSkills, setLoadingProjectSkills] = useState(false);
+  const [projectSkillsCache, setProjectSkillsCache] = useState<Record<string, ProjectSkillInfo[]>>({});
 
   const fetchProjects = async () => {
     try {
@@ -325,9 +335,21 @@ const StudentDashboard = () => {
   const openClaimModal = async (prefillSkillId = '', prefillProjectId = '') => {
     setShowClaimModal(true);
     setClaimMessage(null);
-    setClaimSkillId(prefillSkillId);
-    setClaimProjectId(prefillProjectId || (projects[0]?.id || ''));
     setClaimLevel('INTERMEDIATE');
+
+    let initialProjectIds: string[] = [];
+    if (prefillProjectId) {
+      initialProjectIds = [prefillProjectId];
+    } else if (projects.length > 0) {
+      initialProjectIds = [projects[0].id];
+    }
+    setSelectedProjectIds(initialProjectIds);
+
+    if (prefillSkillId) {
+      setSelectedSkillIds([prefillSkillId]);
+    } else {
+      setSelectedSkillIds([]);
+    }
 
     try {
       const token = localStorage.getItem('token');
@@ -341,12 +363,115 @@ const StudentDashboard = () => {
       console.error('Error loading skills for claim:', err);
       setAvailableSkills([]);
     }
+
+    // Populate or fetch project skills for student's projects
+    const token = localStorage.getItem('token');
+    if (token && projects.length > 0) {
+      setLoadingProjectSkills(true);
+      try {
+        const fetchPromises = projects.map(async (p) => {
+          if (p.skills && p.skills.length > 0) {
+            return { projectId: p.id, skills: p.skills };
+          }
+          const res = await fetch(`${API_BASE}/api/project-skills/${p.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const skillsList = data.map((item: any) => ({
+              id: item.skill.id,
+              name: item.skill.name,
+              category: item.skill.category || null,
+              description: item.skill.description || null,
+            }));
+            return { projectId: p.id, skills: skillsList };
+          }
+          return { projectId: p.id, skills: [] };
+        });
+
+        const results = await Promise.all(fetchPromises);
+        const newCache: Record<string, ProjectSkillInfo[]> = {};
+        results.forEach((r) => {
+          newCache[r.projectId] = r.skills;
+        });
+        setProjectSkillsCache((prev) => ({ ...prev, ...newCache }));
+      } catch (err) {
+        console.error('Error fetching project skills for claim modal:', err);
+      } finally {
+        setLoadingProjectSkills(false);
+      }
+    }
+  };
+
+  // Unique aggregated skills from all selected projects
+  const skillsFromSelectedProjects = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; category: string | null; projectTitles: string[] }>();
+
+    selectedProjectIds.forEach((pId) => {
+      const project = projects.find((p) => p.id === pId);
+      const projTitle = project?.title || 'Selected Project';
+      const skills = projectSkillsCache[pId] || project?.skills || [];
+
+      skills.forEach((skill) => {
+        if (!map.has(skill.id)) {
+          map.set(skill.id, {
+            id: skill.id,
+            name: skill.name,
+            category: skill.category || null,
+            projectTitles: [projTitle],
+          });
+        } else {
+          const existing = map.get(skill.id)!;
+          if (!existing.projectTitles.includes(projTitle)) {
+            existing.projectTitles.push(projTitle);
+          }
+        }
+      });
+    });
+
+    return Array.from(map.values());
+  }, [selectedProjectIds, projectSkillsCache, projects]);
+
+  const toggleProjectSelection = (projectId: string) => {
+    setSelectedProjectIds((prev) =>
+      prev.includes(projectId)
+        ? prev.filter((id) => id !== projectId)
+        : [...prev, projectId]
+    );
+  };
+
+  const toggleSelectAllProjects = () => {
+    if (selectedProjectIds.length === projects.length) {
+      setSelectedProjectIds([]);
+    } else {
+      setSelectedProjectIds(projects.map((p) => p.id));
+    }
+  };
+
+  const toggleSkillSelection = (skillId: string) => {
+    setSelectedSkillIds((prev) =>
+      prev.includes(skillId)
+        ? prev.filter((id) => id !== skillId)
+        : [...prev, skillId]
+    );
+  };
+
+  const toggleSelectAllSkills = () => {
+    if (selectedSkillIds.length === skillsFromSelectedProjects.length) {
+      setSelectedSkillIds([]);
+    } else {
+      setSelectedSkillIds(skillsFromSelectedProjects.map((s) => s.id));
+    }
   };
 
   const handleClaimSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!claimSkillId || !claimProjectId) {
-      setClaimMessage({ type: 'error', text: 'Please select both a skill and a project.' });
+    if (selectedProjectIds.length === 0) {
+      setClaimMessage({ type: 'error', text: 'Please select at least one project evidence.' });
+      return;
+    }
+    if (selectedSkillIds.length === 0) {
+      setClaimMessage({ type: 'error', text: 'Please select at least one skill to claim.' });
       return;
     }
     setClaimLoading(true);
@@ -360,19 +485,29 @@ const StudentDashboard = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          skillId: claimSkillId,
-          projectId: claimProjectId,
+          skillIds: selectedSkillIds,
+          projectIds: selectedProjectIds,
           level: claimLevel,
         }),
       });
+      const data = await response.json();
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Failed to submit skill claim');
+        throw new Error(data.message || 'Failed to submit skill claim');
       }
-      setClaimMessage({ type: 'success', text: 'Skill claimed — pending faculty verification.' });
-      setClaimSkillId('');
-      setClaimProjectId('');
+      setClaimMessage({
+        type: 'success',
+        text: `Submitted ${selectedSkillIds.length} skill claim${
+          selectedSkillIds.length > 1 ? 's' : ''
+        } backed by ${selectedProjectIds.length} project evidence${
+          selectedProjectIds.length > 1 ? 's' : ''
+        }! Pending faculty guide verification.`,
+      });
+      setSelectedSkillIds([]);
       fetchSkills();
+      setTimeout(() => {
+        setShowClaimModal(false);
+        setClaimMessage(null);
+      }, 2000);
     } catch (err) {
       setClaimMessage({
         type: 'error',
@@ -613,64 +748,253 @@ const StudentDashboard = () => {
 
           {/* Claim / Resubmit Skill Modal */}
           {showClaimModal && (
-            <div className="claim-skill-modal-overlay">
-              <div className="claim-skill-modal">
+            <div className="claim-skill-modal-overlay" onClick={() => setShowClaimModal(false)}>
+              <div className="claim-skill-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="claim-skill-modal-header">
-                  <h3>Submit Skill Claim for Verification</h3>
+                  <div>
+                    <h3>Submit Skill Claim for Verification</h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+                      Select project evidence, pick demonstrated skills, and choose your claimed proficiency level.
+                    </p>
+                  </div>
                   <button
                     className="claim-skill-modal-close"
                     onClick={() => setShowClaimModal(false)}
+                    title="Close"
                   >
                     &times;
                   </button>
                 </div>
 
                 <form onSubmit={handleClaimSubmit}>
-                  <div className="claim-skill-field">
-                    <label htmlFor="claim-skill-select">Skill Competency *</label>
-                    <select
-                      id="claim-skill-select"
-                      value={claimSkillId}
-                      onChange={(e) => setClaimSkillId(e.target.value)}
-                      required
-                    >
-                      <option value="">Select a skill...</option>
-                      {availableSkills.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}{s.category ? ` — ${s.category}` : ''}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Step 1: Select Project Evidence (Multi-select Checkboxes) */}
+                  <div className="claim-modal-step">
+                    <div className="claim-step-header">
+                      <div className="claim-step-title">
+                        <span className="claim-step-number">1</span>
+                        <span>Select Supporting Project Evidence *</span>
+                      </div>
+                      {projects.length > 1 && (
+                        <button
+                          type="button"
+                          className="claim-select-all-btn"
+                          onClick={toggleSelectAllProjects}
+                        >
+                          {selectedProjectIds.length === projects.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                      )}
+                    </div>
+                    <p className="claim-step-subtitle">
+                      Check one or more projects where you applied or demonstrated your skills.
+                    </p>
+
+                    {projects.length === 0 ? (
+                      <div className="claim-empty-notice">
+                        <i className="fa fa-folder-open text-gray-400"></i>
+                        <span>You are not enrolled in any projects yet. Create or join a project first.</span>
+                      </div>
+                    ) : (
+                      <div className="claim-projects-grid">
+                        {projects.map((p) => {
+                          const isSelected = selectedProjectIds.includes(p.id);
+                          const pSkills = projectSkillsCache[p.id] || p.skills || [];
+                          return (
+                            <label
+                              key={p.id}
+                              className={`claim-project-card ${isSelected ? 'selected' : ''}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleProjectSelection(p.id)}
+                                className="claim-checkbox"
+                              />
+                              <div className="claim-project-details">
+                                <div className="claim-project-title-row">
+                                  <span className="claim-project-title">{p.title}</span>
+                                  <span className={`claim-project-badge ${p.status.toLowerCase()}`}>
+                                    {p.status}
+                                  </span>
+                                </div>
+                                <div className="claim-project-meta">
+                                  <span>
+                                    <i className="fa fa-award" style={{ marginRight: '4px' }}></i>
+                                    {pSkills.length} skill{pSkills.length === 1 ? '' : 's'} attached
+                                  </span>
+                                  {p.assignedFaculty && (
+                                    <span>
+                                      <i className="fa fa-user-tie" style={{ marginRight: '4px' }}></i>
+                                      {p.assignedFaculty.name}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="claim-skill-field">
-                    <label htmlFor="claim-project-select">Supporting Project Evidence *</label>
-                    <select
-                      id="claim-project-select"
-                      value={claimProjectId}
-                      onChange={(e) => setClaimProjectId(e.target.value)}
-                      required
-                    >
-                      <option value="">Select an enrolled project...</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.title}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Step 2: Skills from Selected Projects */}
+                  <div className="claim-modal-step">
+                    <div className="claim-step-header">
+                      <div className="claim-step-title">
+                        <span className="claim-step-number">2</span>
+                        <span>Skills from Selected Projects *</span>
+                      </div>
+                      {skillsFromSelectedProjects.length > 1 && (
+                        <button
+                          type="button"
+                          className="claim-select-all-btn"
+                          onClick={toggleSelectAllSkills}
+                        >
+                          {selectedSkillIds.length === skillsFromSelectedProjects.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                      )}
+                    </div>
+                    <p className="claim-step-subtitle">
+                      Choose the skill competencies demonstrated across your selected project evidence.
+                    </p>
+
+                    {selectedProjectIds.length === 0 ? (
+                      <div className="claim-empty-notice info">
+                        <i className="fa fa-arrow-up text-purple-600"></i>
+                        <span>Select at least one project above to view and select its skills.</span>
+                      </div>
+                    ) : loadingProjectSkills ? (
+                      <div className="claim-empty-notice">
+                        <i className="fa fa-spinner fa-spin text-purple-600"></i>
+                        <span>Loading project skills...</span>
+                      </div>
+                    ) : skillsFromSelectedProjects.length > 0 ? (
+                      <div className="claim-skills-grid">
+                        {skillsFromSelectedProjects.map((skill) => {
+                          const isSkillSelected = selectedSkillIds.includes(skill.id);
+                          return (
+                            <label
+                              key={skill.id}
+                              className={`claim-skill-card ${isSkillSelected ? 'selected' : ''}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSkillSelected}
+                                onChange={() => toggleSkillSelection(skill.id)}
+                                className="claim-checkbox"
+                              />
+                              <div className="claim-skill-card-body">
+                                <div className="claim-skill-name-row">
+                                  <span className="claim-skill-name">{skill.name}</span>
+                                  {skill.category && (
+                                    <span className="claim-skill-category-badge">{skill.category}</span>
+                                  )}
+                                </div>
+                                <div className="claim-skill-source">
+                                  <i className="fa fa-cube" style={{ marginRight: '4px' }}></i>
+                                  From: {skill.projectTitles.join(', ')}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="claim-no-skills-fallback">
+                        <div className="claim-empty-notice warning">
+                          <i className="fa fa-exclamation-circle text-amber-500"></i>
+                          <div>
+                            <strong>No skills attached to the selected project(s) yet.</strong>
+                            <p style={{ margin: '3px 0 0 0', fontSize: '12px' }}>
+                              You can select a skill from the catalogue below, or attach skills directly on the project board.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="claim-fallback-select-container">
+                          <label htmlFor="fallback-skill-select" style={{ fontSize: '13px', fontWeight: 600 }}>
+                            Choose from catalogue:
+                          </label>
+                          <select
+                            id="fallback-skill-select"
+                            value={selectedSkillIds[0] || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSelectedSkillIds(val ? [val] : []);
+                            }}
+                            className="claim-fallback-select"
+                          >
+                            <option value="">Select a skill...</option>
+                            {availableSkills.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}{s.category ? ` — ${s.category}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="claim-skill-field">
-                    <label htmlFor="claim-level-select">Claimed Proficiency Level</label>
-                    <select
-                      id="claim-level-select"
-                      value={claimLevel}
-                      onChange={(e) => setClaimLevel(e.target.value)}
-                    >
-                      <option value="BEGINNER">BEGINNER — Basic Knowledge & Coursework</option>
-                      <option value="INTERMEDIATE">INTERMEDIATE — Practical Implementation in Project</option>
-                      <option value="ADVANCED">ADVANCED — Architecture, Optimization & Production</option>
-                    </select>
+                  {/* Step 3: Claimed Proficiency Level */}
+                  <div className="claim-modal-step">
+                    <div className="claim-step-header">
+                      <div className="claim-step-title">
+                        <span className="claim-step-number">3</span>
+                        <span>Claimed Proficiency Level *</span>
+                      </div>
+                    </div>
+                    <p className="claim-step-subtitle">
+                      Choose the rigor and depth of competency you are claiming for verification.
+                    </p>
+
+                    <div className="claim-levels-grid">
+                      {[
+                        {
+                          level: 'BEGINNER',
+                          title: 'BEGINNER',
+                          desc: 'Foundational Knowledge & Coursework',
+                          icon: 'fa-seedling',
+                          color: '#10b981',
+                        },
+                        {
+                          level: 'INTERMEDIATE',
+                          title: 'INTERMEDIATE',
+                          desc: 'Applied Implementation in Project Code (Recommended)',
+                          icon: 'fa-code-branch',
+                          color: '#6366f1',
+                        },
+                        {
+                          level: 'ADVANCED',
+                          title: 'ADVANCED',
+                          desc: 'Architecture, Optimization & Production Rigor',
+                          icon: 'fa-layer-group',
+                          color: '#8b5cf6',
+                        },
+                      ].map((item) => {
+                        const isLevelSelected = claimLevel === item.level;
+                        return (
+                          <div
+                            key={item.level}
+                            className={`claim-level-card ${isLevelSelected ? 'selected' : ''}`}
+                            onClick={() => setClaimLevel(item.level)}
+                          >
+                            <div className="claim-level-card-top">
+                              <i className={`fa ${item.icon}`} style={{ color: item.color }}></i>
+                              <span className="claim-level-card-title">{item.title}</span>
+                              <input
+                                type="radio"
+                                name="claimLevel"
+                                value={item.level}
+                                checked={isLevelSelected}
+                                onChange={() => setClaimLevel(item.level)}
+                                className="claim-radio"
+                              />
+                            </div>
+                            <p className="claim-level-card-desc">{item.desc}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {claimMessage && (
@@ -684,15 +1008,34 @@ const StudentDashboard = () => {
                       type="button"
                       className="claim-skill-cancel-btn"
                       onClick={() => setShowClaimModal(false)}
+                      disabled={claimLoading}
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       className="student-primary-button"
-                      disabled={claimLoading}
+                      disabled={
+                        claimLoading ||
+                        selectedProjectIds.length === 0 ||
+                        selectedSkillIds.length === 0
+                      }
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
                     >
-                      {claimLoading ? 'Submitting...' : 'Submit Claim'}
+                      {claimLoading && <i className="fa fa-spinner fa-spin"></i>}
+                      <span>
+                        {claimLoading
+                          ? 'Submitting...'
+                          : selectedSkillIds.length > 0
+                          ? `Submit Claim (${selectedSkillIds.length} Skill${
+                              selectedSkillIds.length > 1 ? 's' : ''
+                            })`
+                          : 'Submit Claim'}
+                      </span>
                     </button>
                   </div>
                 </form>

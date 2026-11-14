@@ -352,6 +352,19 @@ router.get(
               },
             },
           },
+          projectSkills: {
+            include: {
+              skill: {
+                select: {
+                  id: true,
+                  name: true,
+                  category: true,
+                  description: true,
+                  isActive: true,
+                },
+              },
+            },
+          },
         },
         orderBy: {
           updatedAt: 'desc',
@@ -362,6 +375,17 @@ router.get(
         const students = project.students.map((assignment) => assignment.student);
         const faculty = project.assignedFaculty ? [project.assignedFaculty] : [];
         const admins = project.admins.map((assignment) => assignment.admin);
+
+        const skills = project.projectSkills
+          ? project.projectSkills
+              .filter((ps) => ps.skill.isActive)
+              .map((ps) => ({
+                id: ps.skill.id,
+                name: ps.skill.name,
+                category: ps.skill.category,
+                description: ps.skill.description,
+              }))
+          : [];
 
         const tasksCount = project.columns.reduce(
           (acc, column) => acc + column.tasks.length,
@@ -385,6 +409,7 @@ router.get(
           students,
           faculty,
           admins,
+          skills,
 
           createdAt: project.createdAt,
           updatedAt: project.updatedAt,

@@ -265,127 +265,168 @@ router.post(
         return res.status(401).json({ message: 'Authentication required.' });
       }
 
-      const { skillId, projectId, level } = req.body as {
+      const { skillId, skillIds, projectId, projectIds, level } = req.body as {
         skillId?: string;
+        skillIds?: string[];
         projectId?: string;
+        projectIds?: string[];
         level?: SkillLevel;
       };
 
-      if (!skillId || !projectId) {
+      const targetProjectIds: string[] = (
+        Array.isArray(projectIds) && projectIds.length > 0
+          ? projectIds
+          : projectId
+            ? [projectId]
+            : []
+      ).filter(
+        (id): id is string => typeof id === 'string' && id.trim().length > 0
+      );
+
+      const targetSkillIds: string[] = (
+        Array.isArray(skillIds) && skillIds.length > 0
+          ? skillIds
+          : skillId
+            ? [skillId]
+            : []
+      ).filter(
+        (id): id is string => typeof id === 'string' && id.trim().length > 0
+      );
+
+      if (targetProjectIds.length === 0) {
         return res.status(400).json({
-          message: 'skillId and projectId are required.',
+          message: 'At least one project evidence ID is required.',
         });
       }
 
-      // Validate student is enrolled in that project or is project creator
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
-        select: { createdById: true },
-      });
-
-      if (!project) {
-        return res.status(404).json({ message: 'Project not found.' });
+      if (targetSkillIds.length === 0) {
+        return res.status(400).json({
+          message: 'At least one skill ID is required.',
+        });
       }
 
-      let enrollment = await prisma.projectStudent.findUnique({
-        where: {
-          projectId_studentId: {
-            projectId,
-            studentId,
-          },
-        },
-      });
+      // Validate student is enrolled in or creator of all target projects
+      for (const pId of targetProjectIds) {
+        const project = await prisma.project.findUnique({
+          where: { id: pId },
+          select: { id: true, title: true, createdById: true },
+        });
 
-      if (!enrollment && project.createdById === studentId) {
-        enrollment = await prisma.projectStudent.upsert({
+        if (!project) {
+          return res.status(404).json({
+            message: `Project with ID ${pId} not found.`,
+          });
+        }
+
+        let enrollment = await prisma.projectStudent.findUnique({
           where: {
             projectId_studentId: {
-              projectId,
+              projectId: pId,
               studentId,
             },
           },
-          create: {
-            projectId,
-            studentId,
-          },
-          update: {},
         });
+
+        if (!enrollment && project.createdById === studentId) {
+          enrollment = await prisma.projectStudent.upsert({
+            where: {
+              projectId_studentId: {
+                projectId: pId,
+                studentId,
+              },
+            },
+            create: {
+              projectId: pId,
+              studentId,
+            },
+            update: {},
+          });
+        }
+
+        if (!enrollment && project.createdById !== studentId) {
+          return res.status(403).json({
+            message: `You are not enrolled in project "${project.title}".`,
+          });
+        }
       }
 
-      if (!enrollment && project.createdById !== studentId) {
-        return res.status(403).json({
-          message: 'You are not enrolled in this project.',
-        });
-      }
-
-      // Validate skill is active.
-      const skill = await prisma.skill.findUnique({
-        where: { id: skillId },
-        select: { id: true, name: true, isActive: true },
+      // Validate active skills
+      const activeSkills = await prisma.skill.findMany({
+        where: {
+          id: { in: targetSkillIds },
+          isActive: true,
+        },
+        select: { id: true, name: true },
       });
 
-      if (!skill || !skill.isActive) {
+      if (activeSkills.length === 0) {
         return res.status(400).json({
-          message: 'Skill not found or not active.',
+          message: 'None of the specified skills were found or active.',
         });
       }
 
       const requestedLevel: SkillLevel =
         level && ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'].includes(level)
           ? level
-          : 'BEGINNER';
+          : 'INTERMEDIATE';
 
       // Atomic Database Transaction (Phase 8: Transaction Isolation & Integrity)
-      // Guarantees studentSkill claim and its supporting project evidence are committed atomically.
-      const studentSkill = await prisma.$transaction(async (tx) => {
-        const ss = await tx.studentSkill.upsert({
-          where: {
-            studentId_skillId: {
+      // Guarantees studentSkill claims and supporting project evidence links are committed atomically.
+      const createdSkills = await prisma.$transaction(async (tx) => {
+        const results = [];
+        for (const skill of activeSkills) {
+          const ss = await tx.studentSkill.upsert({
+            where: {
+              studentId_skillId: {
+                studentId,
+                skillId: skill.id,
+              },
+            },
+            create: {
               studentId,
-              skillId,
+              skillId: skill.id,
+              level: requestedLevel,
+              verification: 'PENDING',
             },
-          },
-          create: {
-            studentId,
-            skillId,
-            level: requestedLevel,
-            verification: 'PENDING',
-          },
-          update: {
-            level: requestedLevel,
-            verification: 'PENDING',
-            rejectionReason: null,
-            feedback: null,
-            verifiedById: null,
-            verifiedAt: null,
-          },
-          select: {
-            id: true,
-            studentId: true,
-            skillId: true,
-            level: true,
-            verification: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        });
-
-        // Create evidence link (skip if already exists)
-        await tx.studentSkillEvidence.upsert({
-          where: {
-            studentSkillId_projectId: {
-              studentSkillId: ss.id,
-              projectId,
+            update: {
+              level: requestedLevel,
+              verification: 'PENDING',
+              rejectionReason: null,
+              feedback: null,
+              verifiedById: null,
+              verifiedAt: null,
             },
-          },
-          create: {
-            studentSkillId: ss.id,
-            projectId,
-          },
-          update: {},
-        });
+            select: {
+              id: true,
+              studentId: true,
+              skillId: true,
+              level: true,
+              verification: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          });
 
-        return ss;
+          // Link skill claim to all selected projects as evidence
+          for (const pId of targetProjectIds) {
+            await tx.studentSkillEvidence.upsert({
+              where: {
+                studentSkillId_projectId: {
+                  studentSkillId: ss.id,
+                  projectId: pId,
+                },
+              },
+              create: {
+                studentSkillId: ss.id,
+                projectId: pId,
+              },
+              update: {},
+            });
+          }
+
+          results.push(ss);
+        }
+        return results;
       });
 
       const studentUser = await prisma.user.findUnique({
@@ -393,17 +434,22 @@ router.post(
         select: { name: true },
       });
 
-      await logActivity({
-        projectId,
-        userId: studentId,
-        userName: studentUser?.name || 'Student',
-        action: 'SKILL_CLAIMED',
-        details: `Submitted skill claim for "${skill.name}" (${requestedLevel})`,
-      });
+      for (const pId of targetProjectIds) {
+        const skillNames = activeSkills.map((s) => s.name).join(', ');
+        await logActivity({
+          projectId: pId,
+          userId: studentId,
+          userName: studentUser?.name || 'Student',
+          action: 'SKILL_CLAIMED',
+          details: `Submitted skill claim for ${skillNames} (${requestedLevel})`,
+        });
+      }
 
       return res.status(201).json({
-        message: 'Skill claim submitted successfully and routed to faculty guide for review.',
-        studentSkill,
+        message:
+          'Skill claim submitted successfully and routed to faculty guide for review.',
+        studentSkills: createdSkills,
+        studentSkill: createdSkills[0],
       });
     } catch (error) {
       console.error('Error submitting skill claim:', error);
@@ -623,7 +669,6 @@ router.patch(
         type: 'SKILL_VERIFIED',
         title: 'Skill Claim Approved!',
         message: `Faculty verified your competency in "${existing.skill.name}" at level ${updatedLevel}.${feedback ? ` Feedback: "${feedback}"` : ''}`,
-        link: '/student',
       });
 
       return res.json({
