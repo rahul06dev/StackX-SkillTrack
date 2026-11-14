@@ -31,6 +31,11 @@ const StudentDashboard = () => {
       name: string;
       email: string;
     } | null;
+    faculty?: Array<{
+      id: string;
+      name: string;
+      email: string;
+    }>;
     skills?: ProjectSkillInfo[];
   }
 
@@ -857,10 +862,12 @@ const StudentDashboard = () => {
                                     <i className="fa fa-award" style={{ marginRight: '4px' }}></i>
                                     {pSkills.length} skill{pSkills.length === 1 ? '' : 's'} attached
                                   </span>
-                                  {p.assignedFaculty && (
+                                  {(p.faculty?.length || p.assignedFaculty) && (
                                     <span>
                                       <i className="fa fa-user-tie" style={{ marginRight: '4px' }}></i>
-                                      {p.assignedFaculty.name}
+                                      {p.faculty && p.faculty.length > 0
+                                        ? p.faculty.map((f) => f.name).join(', ')
+                                        : p.assignedFaculty?.name}
                                     </span>
                                   )}
                                 </div>
@@ -1477,8 +1484,10 @@ const StudentDashboard = () => {
                   <p>{project.description}</p>
 
                   <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
-                    <i className="fa fa-user-tie" style={{ marginRight: '6px', color: project.assignedFaculty ? '#4f46e5' : '#d97706' }}></i>
-                    {project.assignedFaculty ? (
+                    <i className="fa fa-user-tie" style={{ marginRight: '6px', color: (project.faculty?.length || project.assignedFaculty) ? '#4f46e5' : '#d97706' }}></i>
+                    {project.faculty && project.faculty.length > 0 ? (
+                      <span>Guide{project.faculty.length > 1 ? 's' : ''}: <strong>{project.faculty.map((f) => f.name).join(', ')}</strong></span>
+                    ) : project.assignedFaculty ? (
                       <span>Guide: <strong>{project.assignedFaculty.name}</strong></span>
                     ) : (
                       <span style={{ color: '#d97706' }}>Guide: Supervision Invitation Pending</span>

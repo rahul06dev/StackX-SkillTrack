@@ -65,6 +65,14 @@ const userHasProjectAccess = async (
                     id: true,
                 },
             },
+            faculty: {
+                where: {
+                    facultyId: req.user.id,
+                },
+                select: {
+                    id: true,
+                },
+            },
         },
     });
 
@@ -81,6 +89,7 @@ const userHasProjectAccess = async (
     if (req.user.role === 'FACULTY') {
         return (
             project.assignedFacultyId === req.user.id ||
+            project.faculty.length > 0 ||
             project.createdById === req.user.id
         );
     }

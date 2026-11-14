@@ -88,6 +88,10 @@ router.get(
             where: { studentId: userId },
             select: { id: true },
           },
+          faculty: {
+            where: { facultyId: userId },
+            select: { id: true },
+          },
         },
       });
 
@@ -97,7 +101,7 @@ router.get(
 
       const isOwner = project.createdById === userId;
       const isMember = project.students.length > 0;
-      const isFaculty = project.assignedFacultyId === userId;
+      const isFaculty = project.assignedFacultyId === userId || project.faculty.length > 0;
       const isAdmin = userRole === 'ADMIN';
 
       if (!isOwner && !isMember && !isFaculty && !isAdmin) {
@@ -381,9 +385,21 @@ router.post(
         });
       }
 
-      if (project.assignedFacultyId) {
+      // Check if this specific faculty is already assigned
+      const alreadyAssigned =
+        project.assignedFacultyId === recipientId ||
+        (await prisma.projectFaculty.findUnique({
+          where: {
+            projectId_facultyId: {
+              projectId,
+              facultyId: recipientId,
+            },
+          },
+        }));
+
+      if (alreadyAssigned) {
         return res.status(400).json({
-          message: 'This project already has an assigned faculty supervisor.',
+          message: 'This faculty member is already an assigned supervisor for this project.',
         });
       }
 
@@ -537,22 +553,33 @@ router.patch(
             data: { membersCount: totalMembers },
           });
         } else if (invitation.type === 'FACULTY_GUIDE') {
-          // Set as project faculty supervisor
-          await tx.project.update({
-            where: { id: invitation.projectId },
-            data: { assignedFacultyId: userId },
+          // Add to ProjectFaculty table
+          await tx.projectFaculty.upsert({
+            where: {
+              projectId_facultyId: {
+                projectId: invitation.projectId,
+                facultyId: userId,
+              },
+            },
+            create: {
+              projectId: invitation.projectId,
+              facultyId: userId,
+            },
+            update: {},
           });
 
-          // Cancel any other pending faculty guide invitations for this project
-          await tx.projectInvitation.updateMany({
-            where: {
-              projectId: invitation.projectId,
-              type: 'FACULTY_GUIDE',
-              status: 'PENDING',
-              id: { not: id },
-            },
-            data: { status: 'CANCELLED' },
+          // Set primary assignedFacultyId if not already set
+          const currentProj = await tx.project.findUnique({
+            where: { id: invitation.projectId },
+            select: { assignedFacultyId: true },
           });
+
+          if (!currentProj?.assignedFacultyId) {
+            await tx.project.update({
+              where: { id: invitation.projectId },
+              data: { assignedFacultyId: userId },
+            });
+          }
         }
       });
 

@@ -29,6 +29,10 @@ router.get(
               where: { studentId: req.user!.id },
               select: { id: true },
             },
+            faculty: {
+              where: { facultyId: req.user!.id },
+              select: { id: true },
+            },
           },
         });
 
@@ -39,7 +43,9 @@ router.get(
         const isAssignedStudent = project.students.length > 0;
         const isFaculty =
           req.user?.role === 'FACULTY' &&
-          (project.assignedFacultyId === req.user.id || project.createdById === req.user.id);
+          (project.assignedFacultyId === req.user.id ||
+            project.faculty.length > 0 ||
+            project.createdById === req.user.id);
 
         if (!isAssignedStudent && !isFaculty) {
           return res.status(403).json({ message: 'Access denied to this project activity.' });

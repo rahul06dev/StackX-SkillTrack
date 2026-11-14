@@ -29,6 +29,7 @@ model Project {
   assignedFaculty User? @relation("FacultyProjects", fields: [assignedFacultyId], references: [id])
 
   students ProjectStudent[]
+  faculty  ProjectFaculty[]
   admins   ProjectAdmin[]
 
   columns Column[]
@@ -58,6 +59,20 @@ model ProjectStudent {
   @@unique([projectId, studentId])
   @@index([projectId])
   @@index([studentId])
+}
+
+model ProjectFaculty {
+  id        String   @id @default(uuid())
+  projectId String
+  facultyId String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  faculty User    @relation("ProjectFacultyMembers", fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, facultyId])
+  @@index([projectId])
+  @@index([facultyId])
 }
 
 model ProjectAdmin {
@@ -258,6 +273,7 @@ model User {
 
   createdProjects Project[]        @relation("CreatedProjects")
   facultyProjects Project[]        @relation("FacultyProjects")
+  facultyMemberProjects ProjectFaculty[] @relation("ProjectFacultyMembers")
   studentProjects ProjectStudent[]
   adminProjects   ProjectAdmin[]
 

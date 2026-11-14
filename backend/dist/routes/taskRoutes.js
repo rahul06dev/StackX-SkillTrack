@@ -29,6 +29,14 @@ const userHasProjectAccess = async (projectId, req) => {
                     id: true,
                 },
             },
+            faculty: {
+                where: {
+                    facultyId: req.user.id,
+                },
+                select: {
+                    id: true,
+                },
+            },
         },
     });
     if (!project) {
@@ -41,6 +49,7 @@ const userHasProjectAccess = async (projectId, req) => {
     // Faculty → assigned faculty OR project creator.
     if (req.user.role === 'FACULTY') {
         return (project.assignedFacultyId === req.user.id ||
+            project.faculty.length > 0 ||
             project.createdById === req.user.id);
     }
     return false;
@@ -220,6 +229,13 @@ router.get('/faculty/reviews', authenticateUser, async (req, res) => {
                     OR: [
                         {
                             assignedFacultyId: facultyId,
+                        },
+                        {
+                            faculty: {
+                                some: {
+                                    facultyId,
+                                },
+                            },
                         },
                         {
                             createdById: facultyId,

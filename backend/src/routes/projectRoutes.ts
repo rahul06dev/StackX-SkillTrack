@@ -194,6 +194,19 @@ router.get(
             },
           },
 
+          faculty: {
+            include: {
+              faculty: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true,
+                },
+              },
+            },
+          },
+
           admins: {
             include: {
               admin: {
@@ -224,9 +237,18 @@ router.get(
           (assignment) => assignment.student
         );
 
-        const faculty = project.assignedFaculty
-          ? [project.assignedFaculty]
-          : [];
+        const facultyMap = new Map<string, any>();
+        if (project.assignedFaculty) {
+          facultyMap.set(project.assignedFaculty.id, project.assignedFaculty);
+        }
+        if (project.faculty) {
+          project.faculty.forEach((assignment: any) => {
+            if (assignment.faculty) {
+              facultyMap.set(assignment.faculty.id, assignment.faculty);
+            }
+          });
+        }
+        const faculty = Array.from(facultyMap.values());
 
         const admins = project.admins.map(
           (assignment) => assignment.admin
@@ -303,6 +325,13 @@ router.get(
               OR: [
                 { assignedFacultyId: req.user.id },
                 { createdById: req.user.id },
+                {
+                  faculty: {
+                    some: {
+                      facultyId: req.user.id,
+                    },
+                  },
+                },
               ],
             }
           : {};
@@ -328,6 +357,18 @@ router.get(
               name: true,
               email: true,
               role: true,
+            },
+          },
+          faculty: {
+            include: {
+              faculty: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true,
+                },
+              },
             },
           },
           admins: {
@@ -373,7 +414,18 @@ router.get(
 
       const formattedProjects = projects.map((project) => {
         const students = project.students.map((assignment) => assignment.student);
-        const faculty = project.assignedFaculty ? [project.assignedFaculty] : [];
+        const facultyMap = new Map<string, any>();
+        if (project.assignedFaculty) {
+          facultyMap.set(project.assignedFaculty.id, project.assignedFaculty);
+        }
+        if (project.faculty) {
+          project.faculty.forEach((assignment: any) => {
+            if (assignment.faculty) {
+              facultyMap.set(assignment.faculty.id, assignment.faculty);
+            }
+          });
+        }
+        const faculty = Array.from(facultyMap.values());
         const admins = project.admins.map((assignment) => assignment.admin);
 
         const skills = project.projectSkills
@@ -462,6 +514,13 @@ router.get(
               OR: [
                 { assignedFacultyId: facultyId },
                 { createdById: facultyId },
+                {
+                  faculty: {
+                    some: {
+                      facultyId,
+                    },
+                  },
+                },
               ],
             },
           },
@@ -627,6 +686,19 @@ router.get(
             },
           },
 
+          faculty: {
+            include: {
+              faculty: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true,
+                },
+              },
+            },
+          },
+
           admins: {
             include: {
               admin: {
@@ -663,7 +735,8 @@ router.get(
       );
 
       const isAssignedFaculty =
-        project.assignedFacultyId === userId;
+        project.assignedFacultyId === userId ||
+        project.faculty.some((assignment) => assignment.facultyId === userId);
 
       const isCreator =
         project.createdById === userId;
@@ -698,9 +771,18 @@ router.get(
         (assignment) => assignment.student
       );
 
-      const faculty = project.assignedFaculty
-        ? [project.assignedFaculty]
-        : [];
+      const facultyMap = new Map<string, any>();
+      if (project.assignedFaculty) {
+        facultyMap.set(project.assignedFaculty.id, project.assignedFaculty);
+      }
+      if (project.faculty) {
+        project.faculty.forEach((assignment) => {
+          if (assignment.faculty) {
+            facultyMap.set(assignment.faculty.id, assignment.faculty);
+          }
+        });
+      }
+      const faculty = Array.from(facultyMap.values());
 
       const admins = project.admins.map(
         (assignment) => assignment.admin
@@ -751,6 +833,7 @@ router.put(
       const {
         studentIds = [],
         facultyId = null,
+        facultyIds = null,
         adminIds = [],
       } = req.body;
 
@@ -787,9 +870,20 @@ router.put(
 
       // Faculty permission check: only allowed for supervised or created projects
       if (req.user?.role === 'FACULTY') {
+        const isFacultyMember = await prisma.projectFaculty.findUnique({
+          where: {
+            projectId_facultyId: {
+              projectId,
+              facultyId: req.user.id,
+            },
+          },
+          select: { id: true },
+        });
+
         const isSupervisedOrCreated =
           project.assignedFacultyId === req.user.id ||
-          project.createdById === req.user.id;
+          project.createdById === req.user.id ||
+          Boolean(isFacultyMember);
 
         if (!isSupervisedOrCreated) {
           return res.status(403).json({
@@ -798,17 +892,28 @@ router.put(
         }
       }
 
+      const targetFacultyIds: string[] = (
+        Array.isArray(facultyIds)
+          ? facultyIds
+          : facultyId
+          ? [facultyId]
+          : []
+      ).filter(
+        (id): id is string => typeof id === 'string' && id.trim().length > 0
+      );
+
       // Validate Faculty
-      if (facultyId) {
-        const faculty = await prisma.user.findUnique({
+      if (targetFacultyIds.length > 0) {
+        const facultyUsers = await prisma.user.findMany({
           where: {
-            id: facultyId,
+            id: { in: targetFacultyIds },
+            role: 'FACULTY',
           },
         });
 
-        if (!faculty || faculty.role !== 'FACULTY') {
+        if (facultyUsers.length !== targetFacultyIds.length) {
           return res.status(400).json({
-            message: 'Invalid faculty user.',
+            message: 'One or more faculty IDs are invalid.',
           });
         }
       }
@@ -881,13 +986,29 @@ router.put(
         });
       }
 
+      // Replace faculty assignments
+      await prisma.projectFaculty.deleteMany({
+        where: {
+          projectId,
+        },
+      });
+
+      if (targetFacultyIds.length > 0) {
+        await prisma.projectFaculty.createMany({
+          data: targetFacultyIds.map((fId: string) => ({
+            projectId,
+            facultyId: fId,
+          })),
+        });
+      }
+
       // Update assigned faculty
       await prisma.project.update({
         where: {
           id: projectId,
         },
         data: {
-          assignedFacultyId: facultyId,
+          assignedFacultyId: targetFacultyIds[0] || null,
         },
       });
 
@@ -917,7 +1038,7 @@ router.post(
   authenticateUser,
   authorizeRoles('FACULTY', 'ADMIN', 'STUDENT'),
   async (req: AuthenticatedRequest, res) => {
-    const { title, description, studentIds, technologies, assignedFacultyId } = req.body;
+    const { title, description, studentIds, technologies, assignedFacultyId, facultyIds } = req.body;
 
     if (
       typeof title !== 'string' ||
@@ -955,6 +1076,19 @@ router.post(
 
       const isStudent = userRole === 'STUDENT';
 
+      // Collect faculty IDs from either facultyIds or legacy assignedFacultyId
+      const targetFacultyIds: string[] = [];
+      if (Array.isArray(facultyIds)) {
+        for (const fId of facultyIds) {
+          if (typeof fId === 'string' && fId.trim() && !targetFacultyIds.includes(fId.trim())) {
+            targetFacultyIds.push(fId.trim());
+          }
+        }
+      }
+      if (assignedFacultyId && typeof assignedFacultyId === 'string' && !targetFacultyIds.includes(assignedFacultyId)) {
+        targetFacultyIds.push(assignedFacultyId);
+      }
+
       // Build student enrollment list
       // For student creators: only creator is enrolled immediately; teammates will be invited
       let studentCreateList: { student: { connect: { id: string } } }[] = [];
@@ -966,9 +1100,9 @@ router.post(
         }));
       }
 
-      // For students: assignedFacultyId is null initially until faculty accepts supervision invitation.
-      // For Admin/Faculty: assignedFacultyId is assigned directly.
-      const directFacultyId = isStudent ? null : (assignedFacultyId || null);
+      // For students: faculty will be invited and join upon accepting.
+      // For Admin/Faculty: faculty are assigned directly.
+      const directFacultyId = isStudent ? null : (targetFacultyIds[0] || null);
 
       const newProject = await prisma.project.create({
         data: {
@@ -980,6 +1114,12 @@ router.post(
           students: {
             create: studentCreateList,
           },
+
+          faculty: !isStudent && targetFacultyIds.length > 0 ? {
+            create: targetFacultyIds.map((fId) => ({
+              faculty: { connect: { id: fId } },
+            })),
+          } : undefined,
 
           admins: userRole === 'ADMIN' ? {
             create: [{ admin: { connect: { id: userId } } }],
@@ -1005,6 +1145,13 @@ router.post(
 
         include: {
           students: true,
+          faculty: {
+            include: {
+              faculty: {
+                select: { id: true, name: true, email: true, role: true },
+              },
+            },
+          },
           columns: {
             orderBy: { order: 'asc' },
           },
@@ -1018,23 +1165,23 @@ router.post(
         },
       });
 
-      // For student-created projects, dispatch pending invitations to teammates & faculty guide
+      // For student-created projects, dispatch pending invitations to teammates & faculty guides
       if (isStudent) {
         const creatorUser = await prisma.user.findUnique({
           where: { id: userId },
           select: { name: true },
         });
 
-        // 1. Dispatch Faculty Guide invitation if requested
-        if (assignedFacultyId) {
+        // 1. Dispatch Faculty Guide invitations if requested
+        for (const facultyId of targetFacultyIds) {
           const facultyUser = await prisma.user.findFirst({
-            where: { id: assignedFacultyId, role: 'FACULTY' },
+            where: { id: facultyId, role: 'FACULTY' },
           });
           if (facultyUser) {
             await prisma.projectInvitation.create({
               data: {
                 projectId: newProject.id,
-                recipientId: assignedFacultyId,
+                recipientId: facultyId,
                 invitedById: userId,
                 type: 'FACULTY_GUIDE',
                 status: 'PENDING',
@@ -1044,7 +1191,7 @@ router.post(
 
             // Role-specific notification to faculty
             await createNotification({
-              userId: assignedFacultyId,
+              userId: facultyId,
               type: 'FACULTY_SUPERVISION_REQUEST',
               title: 'Project Supervision Request',
               message: `${creatorUser?.name || 'A student'} requested your academic guidance for "${newProject.title}".`,
@@ -1146,6 +1293,7 @@ router.post(
         description: newProject.description,
         createdById: newProject.createdById,
         assignedFacultyId: newProject.assignedFacultyId,
+        faculty: newProject.faculty?.map((pf: any) => pf.faculty) || [],
         tasks: newProject.tasksCount,
         members: newProject.membersCount,
         columns: newProject.columns,

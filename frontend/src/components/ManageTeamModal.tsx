@@ -46,7 +46,8 @@ interface ManageTeamModalProps {
 
     onSave?: (data: {
         studentIds: string[];
-        facultyId: string | null;
+        facultyId?: string | null;
+        facultyIds?: string[];
         adminIds: string[];
     }) => Promise<void>;
 
@@ -79,7 +80,7 @@ const ManageTeamModal: React.FC<ManageTeamModalProps> = ({
 
     // Direct Assignment State (Admin / Faculty)
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-    const [selectedFacultyId, setSelectedFacultyId] = useState<string | null>(null);
+    const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
     const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
 
@@ -115,7 +116,7 @@ const ManageTeamModal: React.FC<ManageTeamModalProps> = ({
         if (!isOpen) return;
 
         setSelectedStudentIds(assignedStudents.map((s) => s.id));
-        setSelectedFacultyId(assignedFaculty.length > 0 ? assignedFaculty[0].id : null);
+        setSelectedFacultyIds(assignedFaculty.map((f) => f.id));
         setSelectedAdminIds(assignedAdmins.map((a) => a.id));
     }, [isOpen, assignedStudents, assignedFaculty, assignedAdmins]);
 
@@ -291,8 +292,10 @@ const ManageTeamModal: React.FC<ManageTeamModalProps> = ({
         );
     };
 
-    const handleFacultySelect = (facultyId: string) => {
-        setSelectedFacultyId(selectedFacultyId === facultyId ? null : facultyId);
+    const handleFacultyToggle = (facultyId: string) => {
+        setSelectedFacultyIds((prev) =>
+            prev.includes(facultyId) ? prev.filter((id) => id !== facultyId) : [...prev, facultyId]
+        );
     };
 
     // Direct Save (Admin / Faculty)
@@ -302,7 +305,8 @@ const ManageTeamModal: React.FC<ManageTeamModalProps> = ({
             setSaving(true);
             await onSave({
                 studentIds: selectedStudentIds,
-                facultyId: selectedFacultyId,
+                facultyId: selectedFacultyIds[0] || null,
+                facultyIds: selectedFacultyIds,
                 adminIds: selectedAdminIds,
             });
             if (onTeamUpdated) onTeamUpdated();
@@ -504,54 +508,62 @@ const ManageTeamModal: React.FC<ManageTeamModalProps> = ({
                                     </h3>
                                 </div>
 
-                                {assignedFaculty.length > 0 ? (
-                                    <div style={{ padding: '12px', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
-                                        <span style={{ fontSize: '13px', color: '#065f46', fontWeight: 600 }}>
-                                            <i className="fa fa-check-circle" style={{ marginRight: '6px' }}></i>
-                                            Supervised by Prof. {assignedFaculty[0].name} ({assignedFaculty[0].email})
-                                        </span>
+                                {assignedFaculty.length > 0 && (
+                                    <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        {assignedFaculty.map((f) => (
+                                            <div key={f.id} style={{ padding: '8px 12px', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
+                                                <span style={{ fontSize: '13px', color: '#065f46', fontWeight: 600 }}>
+                                                    <i className="fa fa-check-circle" style={{ marginRight: '6px' }}></i>
+                                                    Prof. {f.name} ({f.email})
+                                                </span>
+                                            </div>
+                                        ))}
                                     </div>
-                                ) : (
-                                    <div>
-                                        <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 10px' }}>
-                                            Select a faculty member to invite them as the official academic guide for this project.
-                                        </p>
-                                        <select
-                                            className="invite-search-input"
-                                            value={selectedFacultyToInviteId}
-                                            onChange={(e) => setSelectedFacultyToInviteId(e.target.value)}
-                                        >
-                                            <option value="">Select a Faculty Guide...</option>
-                                            {availableFacultyList.map((f) => (
+                                )}
+
+                                <div>
+                                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 10px' }}>
+                                        {assignedFaculty.length > 0
+                                            ? 'Invite another faculty member as an additional academic supervisor/guide.'
+                                            : 'Select a faculty member to invite them as the official academic guide for this project.'}
+                                    </p>
+                                    <select
+                                        className="invite-search-input"
+                                        value={selectedFacultyToInviteId}
+                                        onChange={(e) => setSelectedFacultyToInviteId(e.target.value)}
+                                    >
+                                        <option value="">Select a Faculty Guide...</option>
+                                        {availableFacultyList
+                                            .filter((f) => !assignedFaculty.some((af) => af.id === f.id))
+                                            .map((f) => (
                                                 <option key={f.id} value={f.id}>
                                                     {f.name} ({f.email})
                                                 </option>
                                             ))}
-                                        </select>
+                                    </select>
 
-                                        {selectedFacultyToInviteId && (
-                                            <div style={{ marginTop: '8px' }}>
-                                                <input
-                                                    type="text"
-                                                    className="invite-search-input"
-                                                    placeholder="Optional message (e.g. 'Requesting your guidance on machine learning evaluation')"
-                                                    value={facultyInviteMessage}
-                                                    onChange={(e) => setFacultyInviteMessage(e.target.value)}
-                                                    style={{ marginBottom: '8px' }}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    className="student-primary-button"
-                                                    style={{ background: '#d97706' }}
-                                                    onClick={handleSendFacultyInvite}
-                                                    disabled={isSendingFacultyInvite}
-                                                >
-                                                    {isSendingFacultyInvite ? 'Sending...' : 'Send Supervision Invitation'}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                    {selectedFacultyToInviteId && (
+                                        <div style={{ marginTop: '8px' }}>
+                                            <input
+                                                type="text"
+                                                className="invite-search-input"
+                                                placeholder="Optional message (e.g. 'Requesting your guidance on machine learning evaluation')"
+                                                value={facultyInviteMessage}
+                                                onChange={(e) => setFacultyInviteMessage(e.target.value)}
+                                                style={{ marginBottom: '8px' }}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="student-primary-button"
+                                                style={{ background: '#d97706' }}
+                                                onClick={handleSendFacultyInvite}
+                                                disabled={isSendingFacultyInvite}
+                                            >
+                                                {isSendingFacultyInvite ? 'Sending...' : 'Send Supervision Invitation'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -701,13 +713,13 @@ const ManageTeamModal: React.FC<ManageTeamModalProps> = ({
                                         </h3>
                                         <p>Academic supervisor overseeing project skill evaluations.</p>
                                     </div>
-                                    <span>{assignedFaculty.length > 0 ? 'Assigned' : 'None'}</span>
+                                    <span>{assignedFaculty.length} Assigned</span>
                                 </div>
 
                                 <div className="manage-team-user-list">
                                     {isAdmin && faculty.length > 0 ? (
                                         faculty.map((f) => {
-                                            const isSelected = selectedFacultyId === f.id;
+                                            const isSelected = selectedFacultyIds.includes(f.id);
                                             return (
                                                 <label
                                                     key={f.id}
@@ -716,7 +728,7 @@ const ManageTeamModal: React.FC<ManageTeamModalProps> = ({
                                                     <input
                                                         type="checkbox"
                                                         checked={isSelected}
-                                                        onChange={() => handleFacultySelect(f.id)}
+                                                        onChange={() => handleFacultyToggle(f.id)}
                                                     />
                                                     <div className="manage-team-user-avatar faculty">
                                                         {f.name.charAt(0).toUpperCase()}

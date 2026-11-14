@@ -515,6 +515,7 @@ router.get(
                 project: {
                   OR: [
                     { assignedFacultyId: userId },
+                    { faculty: { some: { facultyId: userId } } },
                     { createdById: userId },
                   ],
                 },
@@ -598,6 +599,9 @@ router.patch(
                   id: true,
                   title: true,
                   assignedFacultyId: true,
+                  faculty: {
+                    select: { facultyId: true },
+                  },
                   createdById: true,
                 },
               },
@@ -615,6 +619,7 @@ router.patch(
         const hasAccess = existing.evidence.some(
           (e) =>
             e.project.assignedFacultyId === userId ||
+            e.project.faculty.some((f) => f.facultyId === userId) ||
             e.project.createdById === userId
         );
 
@@ -718,6 +723,9 @@ router.patch(
                   id: true,
                   title: true,
                   assignedFacultyId: true,
+                  faculty: {
+                    select: { facultyId: true },
+                  },
                   createdById: true,
                 },
               },
@@ -735,6 +743,7 @@ router.patch(
         const hasAccess = existing.evidence.some(
           (e) =>
             e.project.assignedFacultyId === userId ||
+            e.project.faculty.some((f) => f.facultyId === userId) ||
             e.project.createdById === userId
         );
 
@@ -1064,6 +1073,17 @@ async function buildPortfolio(identifier: string, res: any) {
           email: true,
         },
       },
+      faculty: {
+        select: {
+          faculty: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
       projectSkills: {
         where: { skill: { isActive: true } },
         select: {
@@ -1164,7 +1184,18 @@ async function buildPortfolio(identifier: string, res: any) {
     description: p.description,
     status: p.status,
     role: p.createdById === studentId ? 'Project Owner / Creator' : 'Core Team Member',
-    supervisor: p.assignedFaculty ? p.assignedFaculty.name : 'Faculty Supervised',
+    supervisor: (() => {
+      const allFaculty: string[] = [];
+      if (p.assignedFaculty?.name) allFaculty.push(p.assignedFaculty.name);
+      if (Array.isArray(p.faculty)) {
+        p.faculty.forEach((f: any) => {
+          if (f.faculty?.name && !allFaculty.includes(f.faculty.name)) {
+            allFaculty.push(f.faculty.name);
+          }
+        });
+      }
+      return allFaculty.length > 0 ? allFaculty.join(', ') : 'Faculty Supervised';
+    })(),
     skills: p.projectSkills.map((ps) => ps.skill.name),
   }));
 

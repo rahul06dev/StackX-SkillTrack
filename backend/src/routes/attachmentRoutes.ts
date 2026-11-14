@@ -105,6 +105,10 @@ async function verifyTaskProjectAccess(taskId: string, req: AuthenticatedRequest
         where: { studentId: req.user.id },
         select: { id: true },
       },
+      faculty: {
+        where: { facultyId: req.user.id },
+        select: { id: true },
+      },
     },
   });
 
@@ -116,7 +120,9 @@ async function verifyTaskProjectAccess(taskId: string, req: AuthenticatedRequest
 
   if (
     req.user.role === 'FACULTY' &&
-    (project.assignedFacultyId === req.user.id || project.createdById === req.user.id)
+    (project.assignedFacultyId === req.user.id ||
+      project.faculty.length > 0 ||
+      project.createdById === req.user.id)
   ) {
     return { access: true, task, projectId };
   }

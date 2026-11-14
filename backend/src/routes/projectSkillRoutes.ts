@@ -51,6 +51,14 @@ router.get(
               id: true,
             },
           },
+          faculty: {
+            where: {
+              facultyId: req.user.id,
+            },
+            select: {
+              id: true,
+            },
+          },
         },
       });
 
@@ -72,7 +80,7 @@ router.get(
 
       const isAssignedFaculty =
         req.user.role === 'FACULTY' &&
-        project.assignedFacultyId === req.user.id;
+        (project.assignedFacultyId === req.user.id || project.faculty.length > 0);
 
       const isCreator =
         project.createdById === req.user.id;
@@ -174,6 +182,14 @@ router.post(
               id: true,
             },
           },
+          faculty: {
+            where: {
+              facultyId: req.user.id,
+            },
+            select: {
+              id: true,
+            },
+          },
         },
       });
 
@@ -187,7 +203,7 @@ router.post(
 
       const isAssignedFaculty =
         req.user.role === 'FACULTY' &&
-        project.assignedFacultyId === req.user.id;
+        (project.assignedFacultyId === req.user.id || project.faculty.length > 0);
 
       const isCreator =
         project.createdById === req.user.id;
@@ -323,6 +339,14 @@ router.delete(
               id: true,
             },
           },
+          faculty: {
+            where: {
+              facultyId: req.user.id,
+            },
+            select: {
+              id: true,
+            },
+          },
         },
       });
 
@@ -335,7 +359,7 @@ router.delete(
       const isAdmin = req.user.role === 'ADMIN';
       const isAssignedFaculty =
         req.user.role === 'FACULTY' &&
-        project.assignedFacultyId === req.user.id;
+        (project.assignedFacultyId === req.user.id || project.faculty.length > 0);
       const isCreator = project.createdById === req.user.id;
       const isAssignedStudent =
         req.user.role === 'STUDENT' &&

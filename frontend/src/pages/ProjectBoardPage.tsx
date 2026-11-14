@@ -615,7 +615,8 @@ const ProjectBoardPage = () => {
   const handleSaveTeam = useCallback(
     async (teamData: {
       studentIds: string[];
-      facultyId: string | null;
+      facultyId?: string | null;
+      facultyIds?: string[];
       adminIds: string[];
     }) => {
       try {

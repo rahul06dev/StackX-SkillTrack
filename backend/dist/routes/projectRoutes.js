@@ -136,6 +136,18 @@ router.get('/admin/projects', authenticateUser, authorizeRoles('ADMIN'), async (
                         role: true,
                     },
                 },
+                faculty: {
+                    include: {
+                        faculty: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                                role: true,
+                            },
+                        },
+                    },
+                },
                 admins: {
                     include: {
                         admin: {
@@ -160,9 +172,18 @@ router.get('/admin/projects', authenticateUser, authorizeRoles('ADMIN'), async (
         });
         const formattedProjects = projects.map((project) => {
             const students = project.students.map((assignment) => assignment.student);
-            const faculty = project.assignedFaculty
-                ? [project.assignedFaculty]
-                : [];
+            const facultyMap = new Map();
+            if (project.assignedFaculty) {
+                facultyMap.set(project.assignedFaculty.id, project.assignedFaculty);
+            }
+            if (project.faculty) {
+                project.faculty.forEach((assignment) => {
+                    if (assignment.faculty) {
+                        facultyMap.set(assignment.faculty.id, assignment.faculty);
+                    }
+                });
+            }
+            const faculty = Array.from(facultyMap.values());
             const admins = project.admins.map((assignment) => assignment.admin);
             const tasksCount = project.columns.reduce((total, column) => total + column.tasks.length, 0);
             const peopleCount = students.length +
@@ -215,6 +236,13 @@ router.get('/', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN'),
                     OR: [
                         { assignedFacultyId: req.user.id },
                         { createdById: req.user.id },
+                        {
+                            faculty: {
+                                some: {
+                                    facultyId: req.user.id,
+                                },
+                            },
+                        },
                     ],
                 }
                 : {};
@@ -241,6 +269,18 @@ router.get('/', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN'),
                         role: true,
                     },
                 },
+                faculty: {
+                    include: {
+                        faculty: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                                role: true,
+                            },
+                        },
+                    },
+                },
                 admins: {
                     include: {
                         admin: {
@@ -263,6 +303,19 @@ router.get('/', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN'),
                         },
                     },
                 },
+                projectSkills: {
+                    include: {
+                        skill: {
+                            select: {
+                                id: true,
+                                name: true,
+                                category: true,
+                                description: true,
+                                isActive: true,
+                            },
+                        },
+                    },
+                },
             },
             orderBy: {
                 updatedAt: 'desc',
@@ -270,8 +323,29 @@ router.get('/', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN'),
         });
         const formattedProjects = projects.map((project) => {
             const students = project.students.map((assignment) => assignment.student);
-            const faculty = project.assignedFaculty ? [project.assignedFaculty] : [];
+            const facultyMap = new Map();
+            if (project.assignedFaculty) {
+                facultyMap.set(project.assignedFaculty.id, project.assignedFaculty);
+            }
+            if (project.faculty) {
+                project.faculty.forEach((assignment) => {
+                    if (assignment.faculty) {
+                        facultyMap.set(assignment.faculty.id, assignment.faculty);
+                    }
+                });
+            }
+            const faculty = Array.from(facultyMap.values());
             const admins = project.admins.map((assignment) => assignment.admin);
+            const skills = project.projectSkills
+                ? project.projectSkills
+                    .filter((ps) => ps.skill.isActive)
+                    .map((ps) => ({
+                    id: ps.skill.id,
+                    name: ps.skill.name,
+                    category: ps.skill.category,
+                    description: ps.skill.description,
+                }))
+                : [];
             const tasksCount = project.columns.reduce((acc, column) => acc + column.tasks.length, 0);
             const peopleCount = students.length + faculty.length + admins.length;
             return {
@@ -287,6 +361,7 @@ router.get('/', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN'),
                 students,
                 faculty,
                 admins,
+                skills,
                 createdAt: project.createdAt,
                 updatedAt: project.updatedAt,
                 createdById: project.createdById,
@@ -329,6 +404,13 @@ router.get('/faculty/deadlines', authenticateUser, authorizeRoles('FACULTY'), as
                         OR: [
                             { assignedFacultyId: facultyId },
                             { createdById: facultyId },
+                            {
+                                faculty: {
+                                    some: {
+                                        facultyId,
+                                    },
+                                },
+                            },
                         ],
                     },
                 },
@@ -455,6 +537,18 @@ router.get('/:id', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN
                         role: true,
                     },
                 },
+                faculty: {
+                    include: {
+                        faculty: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                                role: true,
+                            },
+                        },
+                    },
+                },
                 admins: {
                     include: {
                         admin: {
@@ -482,7 +576,8 @@ router.get('/:id', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN
         const userRole = req.user?.role;
         const isAdmin = userRole === 'ADMIN';
         const isAssignedStudent = project.students.some((assignment) => assignment.studentId === userId);
-        const isAssignedFaculty = project.assignedFacultyId === userId;
+        const isAssignedFaculty = project.assignedFacultyId === userId ||
+            project.faculty.some((assignment) => assignment.facultyId === userId);
         const isCreator = project.createdById === userId;
         // Check whether user has an active pending invitation to this project
         const pendingInvitation = await prisma.projectInvitation.findFirst({
@@ -507,9 +602,18 @@ router.get('/:id', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN
             });
         }
         const students = project.students.map((assignment) => assignment.student);
-        const faculty = project.assignedFaculty
-            ? [project.assignedFaculty]
-            : [];
+        const facultyMap = new Map();
+        if (project.assignedFaculty) {
+            facultyMap.set(project.assignedFaculty.id, project.assignedFaculty);
+        }
+        if (project.faculty) {
+            project.faculty.forEach((assignment) => {
+                if (assignment.faculty) {
+                    facultyMap.set(assignment.faculty.id, assignment.faculty);
+                }
+            });
+        }
+        const faculty = Array.from(facultyMap.values());
         const admins = project.admins.map((assignment) => assignment.admin);
         res.json({
             id: project.id,
@@ -542,7 +646,7 @@ router.get('/:id', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN
 router.put('/:id/team', authenticateUser, authorizeRoles('ADMIN', 'FACULTY'), async (req, res) => {
     try {
         const projectId = req.params.id;
-        const { studentIds = [], facultyId = null, adminIds = [], } = req.body;
+        const { studentIds = [], facultyId = null, facultyIds = null, adminIds = [], } = req.body;
         if (!projectId) {
             return res.status(400).json({
                 message: 'Project ID is required.',
@@ -571,24 +675,40 @@ router.put('/:id/team', authenticateUser, authorizeRoles('ADMIN', 'FACULTY'), as
         }
         // Faculty permission check: only allowed for supervised or created projects
         if (req.user?.role === 'FACULTY') {
+            const isFacultyMember = await prisma.projectFaculty.findUnique({
+                where: {
+                    projectId_facultyId: {
+                        projectId,
+                        facultyId: req.user.id,
+                    },
+                },
+                select: { id: true },
+            });
             const isSupervisedOrCreated = project.assignedFacultyId === req.user.id ||
-                project.createdById === req.user.id;
+                project.createdById === req.user.id ||
+                Boolean(isFacultyMember);
             if (!isSupervisedOrCreated) {
                 return res.status(403).json({
                     message: 'You can only update team assignments for projects you supervise or created.',
                 });
             }
         }
+        const targetFacultyIds = (Array.isArray(facultyIds)
+            ? facultyIds
+            : facultyId
+                ? [facultyId]
+                : []).filter((id) => typeof id === 'string' && id.trim().length > 0);
         // Validate Faculty
-        if (facultyId) {
-            const faculty = await prisma.user.findUnique({
+        if (targetFacultyIds.length > 0) {
+            const facultyUsers = await prisma.user.findMany({
                 where: {
-                    id: facultyId,
+                    id: { in: targetFacultyIds },
+                    role: 'FACULTY',
                 },
             });
-            if (!faculty || faculty.role !== 'FACULTY') {
+            if (facultyUsers.length !== targetFacultyIds.length) {
                 return res.status(400).json({
-                    message: 'Invalid faculty user.',
+                    message: 'One or more faculty IDs are invalid.',
                 });
             }
         }
@@ -652,13 +772,27 @@ router.put('/:id/team', authenticateUser, authorizeRoles('ADMIN', 'FACULTY'), as
                 })),
             });
         }
+        // Replace faculty assignments
+        await prisma.projectFaculty.deleteMany({
+            where: {
+                projectId,
+            },
+        });
+        if (targetFacultyIds.length > 0) {
+            await prisma.projectFaculty.createMany({
+                data: targetFacultyIds.map((fId) => ({
+                    projectId,
+                    facultyId: fId,
+                })),
+            });
+        }
         // Update assigned faculty
         await prisma.project.update({
             where: {
                 id: projectId,
             },
             data: {
-                assignedFacultyId: facultyId,
+                assignedFacultyId: targetFacultyIds[0] || null,
             },
         });
         res.json({
@@ -677,7 +811,7 @@ router.put('/:id/team', authenticateUser, authorizeRoles('ADMIN', 'FACULTY'), as
 // and project context to catalogue skills.
 // Supports STUDENT, FACULTY, and ADMIN creation.
 router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT'), async (req, res) => {
-    const { title, description, studentIds, technologies, assignedFacultyId } = req.body;
+    const { title, description, studentIds, technologies, assignedFacultyId, facultyIds } = req.body;
     if (typeof title !== 'string' ||
         !title.trim() ||
         typeof description !== 'string' ||
@@ -707,6 +841,18 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT')
         const mappedResults = executeRuleEngine(techList, projectText, activeSkills);
         const matchedSkillIds = Array.from(new Set(mappedResults.map(m => m.skillId)));
         const isStudent = userRole === 'STUDENT';
+        // Collect faculty IDs from either facultyIds or legacy assignedFacultyId
+        const targetFacultyIds = [];
+        if (Array.isArray(facultyIds)) {
+            for (const fId of facultyIds) {
+                if (typeof fId === 'string' && fId.trim() && !targetFacultyIds.includes(fId.trim())) {
+                    targetFacultyIds.push(fId.trim());
+                }
+            }
+        }
+        if (assignedFacultyId && typeof assignedFacultyId === 'string' && !targetFacultyIds.includes(assignedFacultyId)) {
+            targetFacultyIds.push(assignedFacultyId);
+        }
         // Build student enrollment list
         // For student creators: only creator is enrolled immediately; teammates will be invited
         let studentCreateList = [];
@@ -718,9 +864,9 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT')
                 student: { connect: { id: studentId } },
             }));
         }
-        // For students: assignedFacultyId is null initially until faculty accepts supervision invitation.
-        // For Admin/Faculty: assignedFacultyId is assigned directly.
-        const directFacultyId = isStudent ? null : (assignedFacultyId || null);
+        // For students: faculty will be invited and join upon accepting.
+        // For Admin/Faculty: faculty are assigned directly.
+        const directFacultyId = isStudent ? null : (targetFacultyIds[0] || null);
         const newProject = await prisma.project.create({
             data: {
                 title: title.trim(),
@@ -730,6 +876,11 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT')
                 students: {
                     create: studentCreateList,
                 },
+                faculty: !isStudent && targetFacultyIds.length > 0 ? {
+                    create: targetFacultyIds.map((fId) => ({
+                        faculty: { connect: { id: fId } },
+                    })),
+                } : undefined,
                 admins: userRole === 'ADMIN' ? {
                     create: [{ admin: { connect: { id: userId } } }],
                 } : undefined,
@@ -751,6 +902,13 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT')
             },
             include: {
                 students: true,
+                faculty: {
+                    include: {
+                        faculty: {
+                            select: { id: true, name: true, email: true, role: true },
+                        },
+                    },
+                },
                 columns: {
                     orderBy: { order: 'asc' },
                 },
@@ -763,22 +921,22 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT')
                 },
             },
         });
-        // For student-created projects, dispatch pending invitations to teammates & faculty guide
+        // For student-created projects, dispatch pending invitations to teammates & faculty guides
         if (isStudent) {
             const creatorUser = await prisma.user.findUnique({
                 where: { id: userId },
                 select: { name: true },
             });
-            // 1. Dispatch Faculty Guide invitation if requested
-            if (assignedFacultyId) {
+            // 1. Dispatch Faculty Guide invitations if requested
+            for (const facultyId of targetFacultyIds) {
                 const facultyUser = await prisma.user.findFirst({
-                    where: { id: assignedFacultyId, role: 'FACULTY' },
+                    where: { id: facultyId, role: 'FACULTY' },
                 });
                 if (facultyUser) {
                     await prisma.projectInvitation.create({
                         data: {
                             projectId: newProject.id,
-                            recipientId: assignedFacultyId,
+                            recipientId: facultyId,
                             invitedById: userId,
                             type: 'FACULTY_GUIDE',
                             status: 'PENDING',
@@ -787,7 +945,7 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT')
                     });
                     // Role-specific notification to faculty
                     await createNotification({
-                        userId: assignedFacultyId,
+                        userId: facultyId,
                         type: 'FACULTY_SUPERVISION_REQUEST',
                         title: 'Project Supervision Request',
                         message: `${creatorUser?.name || 'A student'} requested your academic guidance for "${newProject.title}".`,
@@ -884,6 +1042,7 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT')
             description: newProject.description,
             createdById: newProject.createdById,
             assignedFacultyId: newProject.assignedFacultyId,
+            faculty: newProject.faculty?.map((pf) => pf.faculty) || [],
             tasks: newProject.tasksCount,
             members: newProject.membersCount,
             columns: newProject.columns,

@@ -305,7 +305,11 @@ async function deleteUserSafely(userId) {
         await tx.projectStudent.deleteMany({
             where: { studentId: userId },
         });
-        // 4. Delete ProjectAdmin records
+        // 4. Delete ProjectFaculty memberships
+        await tx.projectFaculty.deleteMany({
+            where: { facultyId: userId },
+        });
+        // 5. Delete ProjectAdmin records
         await tx.projectAdmin.deleteMany({
             where: { adminId: userId },
         });

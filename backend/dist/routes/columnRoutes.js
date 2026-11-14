@@ -29,6 +29,14 @@ const userHasProjectAccess = async (projectId, req) => {
                     id: true,
                 },
             },
+            faculty: {
+                where: {
+                    facultyId: req.user.id,
+                },
+                select: {
+                    id: true,
+                },
+            },
         },
     });
     if (!project) {
@@ -53,7 +61,8 @@ const userHasProjectAccess = async (projectId, req) => {
     // Faculty → assigned faculty OR project creator.
     if (req.user.role === 'FACULTY') {
         if (project.assignedFacultyId === req.user.id ||
-            project.createdById === req.user.id) {
+            project.createdById === req.user.id ||
+            project.faculty.length > 0) {
             return true;
         }
         // Allow invited faculty with a pending supervision request to preview the board

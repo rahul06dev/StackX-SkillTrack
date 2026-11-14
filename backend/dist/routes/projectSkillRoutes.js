@@ -37,6 +37,14 @@ router.get('/:projectId', authenticateUser, async (req, res) => {
                         id: true,
                     },
                 },
+                faculty: {
+                    where: {
+                        facultyId: req.user.id,
+                    },
+                    select: {
+                        id: true,
+                    },
+                },
             },
         });
         if (!project) {
@@ -51,7 +59,7 @@ router.get('/:projectId', authenticateUser, async (req, res) => {
         const isAssignedStudent = req.user.role === 'STUDENT' &&
             project.students.length > 0;
         const isAssignedFaculty = req.user.role === 'FACULTY' &&
-            project.assignedFacultyId === req.user.id;
+            (project.assignedFacultyId === req.user.id || project.faculty.length > 0);
         const isCreator = project.createdById === req.user.id;
         if (!isAdmin &&
             !isAssignedStudent &&
@@ -94,9 +102,9 @@ router.get('/:projectId', authenticateUser, async (req, res) => {
 
   ADMIN   → Can add
   FACULTY → Can add if assigned/creator
-  STUDENT → Cannot add
+  STUDENT → Can add if assigned team member or creator
 */
-router.post('/:projectId', authenticateUser, authorizeRoles('ADMIN', 'FACULTY'), async (req, res) => {
+router.post('/:projectId', authenticateUser, authorizeRoles('ADMIN', 'FACULTY', 'STUDENT'), async (req, res) => {
     try {
         const { projectId } = req.params;
         const { skillId } = req.body;
@@ -121,6 +129,22 @@ router.post('/:projectId', authenticateUser, authorizeRoles('ADMIN', 'FACULTY'),
                 id: true,
                 createdById: true,
                 assignedFacultyId: true,
+                students: {
+                    where: {
+                        studentId: req.user.id,
+                    },
+                    select: {
+                        id: true,
+                    },
+                },
+                faculty: {
+                    where: {
+                        facultyId: req.user.id,
+                    },
+                    select: {
+                        id: true,
+                    },
+                },
             },
         });
         if (!project) {
@@ -130,11 +154,14 @@ router.post('/:projectId', authenticateUser, authorizeRoles('ADMIN', 'FACULTY'),
         }
         const isAdmin = req.user.role === 'ADMIN';
         const isAssignedFaculty = req.user.role === 'FACULTY' &&
-            project.assignedFacultyId === req.user.id;
+            (project.assignedFacultyId === req.user.id || project.faculty.length > 0);
         const isCreator = project.createdById === req.user.id;
+        const isAssignedStudent = req.user.role === 'STUDENT' &&
+            project.students.length > 0;
         if (!isAdmin &&
             !isAssignedFaculty &&
-            !isCreator) {
+            !isCreator &&
+            !isAssignedStudent) {
             return res.status(403).json({
                 message: 'You do not have permission to add skills to this project.',
             });
@@ -191,6 +218,100 @@ router.post('/:projectId', authenticateUser, authorizeRoles('ADMIN', 'FACULTY'),
         console.error('Error attaching skill to project:', error);
         return res.status(500).json({
             message: 'Failed to attach skill to project.',
+        });
+    }
+});
+/*
+  ==========================================
+  REMOVE SKILL FROM PROJECT
+  DELETE /api/project-skills/:projectId/:skillId
+  ==========================================
+
+  ADMIN   → Can remove
+  FACULTY → Can remove if assigned/creator
+  STUDENT → Can remove if assigned team member or creator
+*/
+router.delete('/:projectId/:skillId', authenticateUser, authorizeRoles('ADMIN', 'FACULTY', 'STUDENT'), async (req, res) => {
+    try {
+        const { projectId, skillId } = req.params;
+        if (!req.user) {
+            return res.status(401).json({
+                message: 'Authentication required.',
+            });
+        }
+        // Check project access
+        const project = await prisma.project.findUnique({
+            where: {
+                id: projectId,
+            },
+            select: {
+                id: true,
+                createdById: true,
+                assignedFacultyId: true,
+                students: {
+                    where: {
+                        studentId: req.user.id,
+                    },
+                    select: {
+                        id: true,
+                    },
+                },
+                faculty: {
+                    where: {
+                        facultyId: req.user.id,
+                    },
+                    select: {
+                        id: true,
+                    },
+                },
+            },
+        });
+        if (!project) {
+            return res.status(404).json({
+                message: 'Project not found.',
+            });
+        }
+        const isAdmin = req.user.role === 'ADMIN';
+        const isAssignedFaculty = req.user.role === 'FACULTY' &&
+            (project.assignedFacultyId === req.user.id || project.faculty.length > 0);
+        const isCreator = project.createdById === req.user.id;
+        const isAssignedStudent = req.user.role === 'STUDENT' &&
+            project.students.length > 0;
+        if (!isAdmin && !isAssignedFaculty && !isCreator && !isAssignedStudent) {
+            return res.status(403).json({
+                message: 'You do not have permission to remove skills from this project.',
+            });
+        }
+        // Check if attached
+        const existingProjectSkill = await prisma.projectSkill.findUnique({
+            where: {
+                projectId_skillId: {
+                    projectId,
+                    skillId,
+                },
+            },
+        });
+        if (!existingProjectSkill) {
+            return res.status(404).json({
+                message: 'Skill is not attached to this project.',
+            });
+        }
+        await prisma.projectSkill.delete({
+            where: {
+                projectId_skillId: {
+                    projectId,
+                    skillId,
+                },
+            },
+        });
+        return res.status(200).json({
+            message: 'Skill removed from project successfully.',
+        });
+    }
+    catch (error) {
+        console.error('Error removing skill from project:', error);
+        return res.status(500).json({
+            message: 'Failed to remove skill from project.',
         });
     }
 });
