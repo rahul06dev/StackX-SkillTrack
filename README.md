@@ -305,7 +305,11 @@ project-tracker/
 │   │       ├── columnRoutes.ts
 │   │       ├── taskRoutes.ts
 │   │       ├── commentRoutes.ts
-│   │       └── userRoutes.ts
+│   │       ├── userRoutes.ts          # User management, profile updates, self-deletion
+│   │       ├── attachmentRoutes.ts    # Secure file uploads & task attachments
+│   │       ├── invitationRoutes.ts    # Project collaboration & supervisor invitations
+│   │       ├── notificationRoutes.ts  # In-app notifications & read state
+│   │       └── activityRoutes.ts      # Project audit log & history
 │   ├── package.json
 │   └── tsconfig.json
 │
@@ -318,17 +322,20 @@ project-tracker/
     │   │   ├── StudentDashboard.tsx   # Student view, claim modal, submitted claims
     │   │   ├── FacultyDashboard.tsx   # Faculty view, skill verification requests
     │   │   ├── PortfolioPage.tsx      # Digital Skill Passport & printable portfolio
-    │   │   ├── AdminDashboard.tsx
-    │   │   ├── AdminProjectsPage.tsx
-    │   │   ├── AdminSkillsPage.tsx
-    │   │   ├── AdminJobRolesPage.tsx
+    │   │   ├── AdminDashboard.tsx     # Admin overview & system statistics
+    │   │   ├── AdminUsersPage.tsx     # User management roster & role administration
+    │   │   ├── AdminProjectsPage.tsx  # Global project oversight
+    │   │   ├── AdminSkillsPage.tsx    # Master skills catalogue management
+    │   │   ├── AdminJobRolesPage.tsx  # Industry job role competency profiles
     │   │   ├── AdminTalentSearchPage.tsx # Talent search with verified badges
     │   │   ├── ProjectsPage.tsx       # Student & faculty project management
     │   │   ├── ProjectBoardPage.tsx   # Kanban board, columns, tasks
-    │   │   ├── Login.tsx
-    │   │   └── Register.tsx
+    │   │   ├── SettingsPage.tsx       # Profile, notification settings & security/password
+    │   │   ├── Login.tsx              # Authentication with password show/hide toggle
+    │   │   └── Register.tsx           # Registration with department selection & password toggle
     │   └── components/
-    │       ├── Sidebar.tsx            # Navigation including Portfolio link
+    │       ├── Sidebar.tsx            # Full-height sticky sidebar with mobile responsiveness
+    │       ├── NotificationBell.tsx   # Real-time notifications dropdown & unread counter
     │       ├── CreateProjectModal.tsx # Project creation with tech & faculty guide
     │       ├── KanbanColumn.tsx
     │       ├── TaskCard.tsx
@@ -340,19 +347,35 @@ project-tracker/
 
 ---
 
+## 🚀 Live Production Deployment
+
+| Service | Platform | URL / Configuration |
+|---|---|---|
+| **Frontend** | Vercel | Single-Page Application with rewrite routing (`vercel.json`) |
+| **Backend API** | Render | Node.js / Express Web Service (`https://stackx-skilltrack.onrender.com`) |
+| **Database** | Neon | Serverless PostgreSQL with auto-scaling compute |
+
+---
+
 ## Getting Started
 
 ### Prerequisites
 
 - **Node.js** ≥ 18.x
-- **PostgreSQL** running locally on port 5432
+- **PostgreSQL** (Local instance or [Neon](https://neon.tech) cloud database)
 - **npm** ≥ 9.x
 
 ### 1. Database Setup
 
-Ensure PostgreSQL is running and create the database:
+Ensure PostgreSQL is running and create the database (or use your Neon PostgreSQL connection string):
 ```sql
-CREATE DATABASE agileflow_db;
+CREATE DATABASE skilltrack_db;
+```
+
+Push Prisma schema to the database:
+```bash
+cd backend
+npx prisma db push
 ```
 
 ### 2. Quick Start (Combined Frontend + Backend)
@@ -389,12 +412,19 @@ npm run frontend
 
 ## Environment Variables
 
-Create `backend/.env` with your PostgreSQL credentials:
+### Backend (`backend/.env`)
 
 ```env
-DATABASE_URL="postgresql://<username>:<password>@localhost:5432/agileflow_db?schema=public"
-JWT_SECRET=stackx_skilltrack_super_secret_2026
+DATABASE_URL="postgresql://<username>:<password>@<host>:5432/skilltrack_db?sslmode=require"
+JWT_SECRET=your_super_secret_jwt_key
 PORT=4300
+CLIENT_ORIGIN=http://localhost:5173
+```
+
+### Frontend (`frontend/.env` or Vercel Environment Variables)
+
+```env
+VITE_API_BASE_URL=https://stackx-skilltrack.onrender.com/api
 ```
 
 ---
@@ -412,7 +442,15 @@ PORT=4300
 - [x] **Kanban Board & Custom Columns** (Add/delete columns, move tasks, priority, due dates)
 - [x] **Task Comments & Collaboration** (Threaded comments with author & timestamp)
 - [x] **Admin Skills Catalogue & Job Roles** (Master CRUD with soft-deactivation)
+- [x] **Admin User Management Roster** (`/admin/users` with role reassignment & user deletion)
+- [x] **Account & Security Settings** (`/settings` with profile updates, notification preferences & OWASP password changes)
 - [x] **Clean Production Build Verification** (Both backend and frontend compile with 0 errors)
+
+---
+
+## Author & Maintainer
+
+**Soumyaranjan Parida** ([@rahul06dev](https://github.com/rahul06dev))
 
 ---
 
