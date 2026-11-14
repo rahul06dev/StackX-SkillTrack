@@ -55,7 +55,7 @@ export const authenticateUser = (
     ) as JwtPayload;
 
     req.user = {
-      id: decoded.userId,
+      id: decoded.userId || (decoded as any).id,
       role: decoded.role,
     };
 

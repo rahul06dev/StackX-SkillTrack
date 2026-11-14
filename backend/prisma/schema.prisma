@@ -35,6 +35,8 @@ model Project {
 
   projectSkills ProjectSkill[]
   skillEvidence StudentSkillEvidence[]
+  activities    Activity[]
+  invitations   ProjectInvitation[]
 
   tasksCount   Int @default(0)
   membersCount Int @default(0)
@@ -73,6 +75,45 @@ model ProjectAdmin {
 }
 
 // =============================
+// PROJECT INVITATIONS & COLLABORATION
+// =============================
+
+enum InvitationType {
+  TEAM_MEMBER
+  FACULTY_GUIDE
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+model ProjectInvitation {
+  id          String           @id @default(uuid())
+  projectId   String
+  invitedById String
+  recipientId String
+  type        InvitationType
+  status      InvitationStatus @default(PENDING)
+  message     String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invitedBy User    @relation("SentInvitations", fields: [invitedById], references: [id], onDelete: Cascade)
+  recipient User    @relation("ReceivedInvitations", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([invitedById])
+  @@index([recipientId])
+  @@index([status])
+  @@index([recipientId, status])
+  @@index([projectId, recipientId, status])
+}
+
+// =============================
 // PROJECT STATUS
 // =============================
 
@@ -104,19 +145,66 @@ model Column {
 // =============================
 
 model Task {
-  id          String    @id @default(uuid())
+  id          String       @id @default(uuid())
   columnId    String
   title       String
   description String?
   priority    String
   dueDate     DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  order       Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
-  column   Column    @relation(fields: [columnId], references: [id])
-  comments Comment[]
+  column      Column       @relation(fields: [columnId], references: [id])
+  comments    Comment[]
+  attachments Attachment[]
 
   @@index([columnId])
+  @@index([order])
+  @@index([dueDate])
+  @@index([columnId, order])
+}
+
+// =============================
+// ATTACHMENT
+// =============================
+
+model Attachment {
+  id           String   @id @default(uuid())
+  taskId       String
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  filePath     String
+  uploadedBy   String?
+  uploaderName String?
+  createdAt    DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+// =============================
+// ACTIVITY LOG
+// =============================
+
+model Activity {
+  id        String   @id @default(uuid())
+  projectId String
+  taskId    String?
+  userId    String?
+  userName  String
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([taskId])
+  @@index([createdAt])
+  @@index([projectId, createdAt])
 }
 
 // =============================
@@ -131,7 +219,7 @@ model Comment {
   content   String   @db.Text
   createdAt DateTime @default(now())
 
-  task Task @relation(fields: [taskId], references: [id])
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
 }
@@ -158,12 +246,30 @@ model User {
   role      Role     @default(STUDENT)
   createdAt DateTime @default(now())
 
+  // Student Profile & Academic Passport Fields (Phase 4)
+  headline       String?
+  bio            String?             @db.Text
+  department     String?
+  studentIdNo    String?
+  graduationYear String?
+  githubUrl      String?
+  linkedinUrl    String?
+  shareableSlug  String?             @unique
+
   createdProjects Project[]        @relation("CreatedProjects")
   facultyProjects Project[]        @relation("FacultyProjects")
   studentProjects ProjectStudent[]
   adminProjects   ProjectAdmin[]
 
-  studentSkills StudentSkill[] @relation("StudentSkills")
+  sentInvitations     ProjectInvitation[] @relation("SentInvitations")
+  receivedInvitations ProjectInvitation[] @relation("ReceivedInvitations")
+
+  notifications Notification[] @relation("UserNotifications")
+
+  studentSkills  StudentSkill[] @relation("StudentSkills")
+  verifiedSkills StudentSkill[] @relation("VerifiedSkills")
+
+  @@index([role])
 }
 
 enum SkillLevel {
@@ -175,6 +281,7 @@ enum SkillLevel {
 enum SkillVerificationStatus {
   PENDING
   VERIFIED
+  REJECTED
 }
 
 model Skill {
@@ -206,18 +313,21 @@ model ProjectSkill {
 }
 
 model StudentSkill {
-  id           String                  @id @default(uuid())
-  studentId    String
-  skillId      String
-  level        SkillLevel              @default(BEGINNER)
-  verification SkillVerificationStatus @default(PENDING)
-  verifiedById String?
-  verifiedAt   DateTime?
-  createdAt    DateTime                @default(now())
-  updatedAt    DateTime                @updatedAt
+  id              String                  @id @default(uuid())
+  studentId       String
+  skillId         String
+  level           SkillLevel              @default(BEGINNER)
+  verification    SkillVerificationStatus @default(PENDING)
+  verifiedById    String?
+  verifiedAt      DateTime?
+  rejectionReason String?                 @db.Text
+  feedback        String?                 @db.Text
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
 
-  student User  @relation("StudentSkills", fields: [studentId], references: [id], onDelete: Cascade)
-  skill   Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  student    User  @relation("StudentSkills", fields: [studentId], references: [id], onDelete: Cascade)
+  skill      Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  verifiedBy User? @relation("VerifiedSkills", fields: [verifiedById], references: [id], onDelete: SetNull)
 
   evidence StudentSkillEvidence[]
 
@@ -225,6 +335,8 @@ model StudentSkill {
   @@index([studentId])
   @@index([skillId])
   @@index([verification])
+  @@index([verifiedById])
+  @@index([studentId, verification])
 }
 
 model StudentSkillEvidence {
@@ -270,4 +382,39 @@ model JobRoleSkill {
   @@unique([jobRoleId, skillId])
   @@index([jobRoleId])
   @@index([skillId])
+}
+
+// =============================
+// NOTIFICATIONS & COLLABORATION (Phase 7)
+// =============================
+
+enum NotificationType {
+  PROJECT_INVITATION
+  FACULTY_SUPERVISION_REQUEST
+  INVITATION_ACCEPTED
+  INVITATION_DECLINED
+  TASK_ASSIGNED
+  DEADLINE_REMINDER
+  SKILL_VERIFIED
+  SKILL_REJECTED
+  SYSTEM_ALERT
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
 }

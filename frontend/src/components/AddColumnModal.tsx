@@ -25,7 +25,7 @@ const COLOR_THEMES: ColorTheme[] = [
     { name: 'Indigo', class: 'theme-indigo' },
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ isOpen, onClose, onColumnCreate }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ isOpen: _isOpen, onClose, onColumnCreate }) => {
     
     const [columnTitle, setColumnTitle] = useState('');
     const [selectedTheme, setSelectedTheme] = useState<ColorTheme>(COLOR_THEMES[0]); 
@@ -52,7 +52,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ isOpen, onClose, onColu
     return (
         <div className="modal-overlay">
             {/* The modal-content-small class is a new one for smaller modals */}
-            <div className="modal-content modal-content-small">
+            <div className="modal-content modal-content-small w-[92vw] max-w-[500px]">
                 
                 {/* Header (Title and Close Button) */}
                 <div className="modal-header flex justify-between items-center p-4 border-b border-gray-200">
@@ -63,7 +63,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ isOpen, onClose, onColu
                 </div>
 
                 {/* Body Content */}
-                <div className="modal-body p-6 space-y-6">
+                <div className="modal-body p-4 sm:p-6 space-y-5">
                     
                     {/* Column Title Input */}
                     <div className="input-group">

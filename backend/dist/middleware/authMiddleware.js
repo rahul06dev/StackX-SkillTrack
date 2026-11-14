@@ -20,7 +20,7 @@ export const authenticateUser = (req, res, next) => {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         req.user = {
-            id: decoded.userId,
+            id: decoded.userId || decoded.id,
             role: decoded.role,
         };
         next();

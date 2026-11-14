@@ -286,14 +286,20 @@
 /* ------------------------------------------- */
 
 .kanban-board-grid {
-    display: grid;
-    /* 4 equally sized columns */
-    grid-template-columns: repeat(4, 1fr); 
-    gap: 1.5rem; /* gap-6 */
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    overflow-x: auto;
+    padding-bottom: 2rem;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
 }
 
 /* Base Column Styles */
 .kanban-column {
+    min-width: 290px;
+    width: 320px;
+    flex-shrink: 0;
     background-color: #f8f8ff; /* Very light background for the column body */
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
     min-height: 70vh; /* Ensure columns take up space */

@@ -1,0 +1,26 @@
+{
+  "name": "project-tracker",
+  "version": "1.0.0",
+  "description": "StackX SkillTrack: Project-Based Student Skill Profiling & Tracking System",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node start.js",
+    "dev": "node start.js",
+    "start:prod": "node start.js --prod",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "test": "npm --prefix backend test",
+    "backend": "npm --prefix backend run dev",
+    "frontend": "npm --prefix frontend run dev"
+  },
+  "keywords": [
+    "skilltrack",
+    "project-tracker",
+    "kanban",
+    "competency",
+    "skills"
+  ],
+  "author": "StackX",
+  "license": "ISC"
+}
+

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateUser, } from '../middleware/authMiddleware.js';
+import { logActivity } from '../services/activityService.js';
 const prisma = new PrismaClient();
 const router = Router();
 // ==========================================
@@ -51,9 +52,9 @@ const userHasProjectAccess = async (projectId, req) => {
     if (!project) {
         return null;
     }
-    // Student → must be explicitly assigned.
+    // Student → must be explicitly assigned or project creator.
     if (req.user.role === 'STUDENT') {
-        return project.students.length > 0;
+        return project.students.length > 0 || project.createdById === req.user.id;
     }
     // Faculty → assigned faculty OR project creator.
     if (req.user.role === 'FACULTY') {
@@ -121,9 +122,14 @@ router.get('/task/:taskId', authenticateUser, async (req, res) => {
 // POST CREATE NEW COMMENT
 // POST /api/comments/task/:taskId
 // ==========================================
-router.post('/task/:taskId', authenticateUser, async (req, res) => {
-    const { taskId } = req.params;
+router.post(['/', '/task/:taskId'], authenticateUser, async (req, res) => {
+    const taskId = req.params.taskId || req.body.taskId;
     const { content } = req.body;
+    if (!taskId) {
+        return res.status(400).json({
+            message: 'taskId is required.',
+        });
+    }
     if (!content) {
         return res.status(400).json({
             message: 'Comment content is required.',
@@ -171,6 +177,15 @@ router.post('/task/:taskId', authenticateUser, async (req, res) => {
                 userName: user.name,
                 content,
             },
+        });
+        // Log activity
+        await logActivity({
+            projectId,
+            taskId,
+            userId: req.user.id,
+            userName: user.name,
+            action: 'COMMENT_ADDED',
+            details: `Added comment: "${content.slice(0, 40)}${content.length > 40 ? '...' : ''}"`,
         });
         // Format response for frontend.
         res.status(201).json({

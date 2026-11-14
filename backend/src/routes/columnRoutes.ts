@@ -48,9 +48,9 @@ const userHasProjectAccess = async (
         return null;
     }
 
-    // Student → must be explicitly assigned.
+    // Student → must be explicitly assigned or project creator.
     if (req.user.role === 'STUDENT') {
-        return project.students.length > 0;
+        return project.students.length > 0 || project.createdById === req.user.id;
     }
 
     // Faculty → assigned faculty OR project creator.
@@ -105,19 +105,47 @@ router.get(
                 where: {
                     projectId,
                 },
-                select: {
-                    id: true,
-                    title: true,
-                    projectId: true,
-                    colorClass: true,
-                    order: true,
+                include: {
+                    tasks: {
+                        orderBy: [
+                            { order: 'asc' },
+                            { createdAt: 'asc' },
+                        ],
+                        include: {
+                            _count: {
+                                select: {
+                                    comments: true,
+                                    attachments: true,
+                                },
+                            },
+                        },
+                    },
                 },
                 orderBy: {
                     order: 'asc',
                 },
             });
 
-            res.json(columns);
+            const formattedColumns = columns.map(col => ({
+                id: col.id,
+                title: col.title,
+                projectId: col.projectId,
+                colorClass: col.colorClass,
+                order: col.order,
+                tasks: col.tasks.map(t => ({
+                    id: t.id,
+                    columnId: t.columnId,
+                    title: t.title,
+                    description: t.description,
+                    priority: t.priority,
+                    order: t.order,
+                    dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+                    commentsCount: t._count.comments,
+                    attachmentsCount: t._count.attachments,
+                })),
+            }));
+
+            res.json(formattedColumns);
         } catch (error) {
             console.error(
                 '❌ Error fetching columns:',
@@ -257,19 +285,19 @@ router.delete(
                 });
             }
 
-            // Delete associated tasks first.
-            await prisma.task.deleteMany({
-                where: {
-                    columnId: id,
-                },
-            });
-
-            // Delete the column itself.
-            await prisma.column.delete({
-                where: {
-                    id,
-                },
-            });
+            // Atomic deletion of column and child tasks (Phase 8: Transaction Isolation)
+            await prisma.$transaction([
+                prisma.task.deleteMany({
+                    where: {
+                        columnId: id,
+                    },
+                }),
+                prisma.column.delete({
+                    where: {
+                        id,
+                    },
+                }),
+            ]);
 
             console.log(
                 `✅ Column ID ${id} and associated tasks deleted.`

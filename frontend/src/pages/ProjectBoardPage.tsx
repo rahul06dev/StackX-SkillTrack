@@ -1,10 +1,12 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { DragDropContext, type DropResult } from '@hello-pangea/dnd';
 import Sidebar from '../components/Sidebar';
-import KanbanColumn from '../components/KanbanColumn';
+import KanbanColumn, { type Task } from '../components/KanbanColumn';
 import AddColumnModal from '../components/AddColumnModal';
 import ManageTeamModal from '../components/ManageTeamModal';
 import ProjectSkills from '../components/ProjectSkills';
+import ActivityHistoryModal from '../components/ActivityHistoryModal';
 
 interface ProjectPerson {
   id: string;
@@ -14,8 +16,10 @@ interface ProjectPerson {
 }
 
 interface ProjectDetails {
+  id?: string;
   title: string;
   description: string;
+  createdById?: string;
   students: ProjectPerson[];
   faculty: ProjectPerson[];
   admins: ProjectPerson[];
@@ -27,7 +31,7 @@ interface Column {
   projectId: string;
   colorClass: string;
   order: number;
-  count: number;
+  tasks: Task[];
 }
 
 interface ColorTheme {
@@ -35,7 +39,7 @@ interface ColorTheme {
   class: string;
 }
 
-const API_BASE_URL = 'http://localhost:4300';
+import { API_BASE_URL } from '../config/api';
 
 const ProjectBoardPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -53,13 +57,19 @@ const ProjectBoardPage = () => {
     admins: [],
   });
 
+  const userData = localStorage.getItem('user');
+  const user = userData ? JSON.parse(userData) : null;
+  const isOwner = user?.id ? project.createdById === user.id : false;
+  const isAdmin = user?.role === 'ADMIN';
+  const isFacultySupervisor = project.faculty.some(f => f.id === user?.id);
+  const canManageTeam = isOwner || isAdmin || isFacultySupervisor;
+
   const [columns, setColumns] = useState<Column[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [taskRefreshKey, setTaskRefreshKey] = useState(0);
-
   const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
 
   const [isManageTeamModalOpen, setIsManageTeamModalOpen] =
     useState(false);
@@ -74,23 +84,138 @@ const ProjectBoardPage = () => {
     admins: [],
   });
 
-  const [teamOptionsLoading, setTeamOptionsLoading] = useState(false);
+  const [, setTeamOptionsLoading] = useState(false);
 
-  // --- MOVE TASK BETWEEN COLUMNS ---
-  const handleTaskMove = useCallback(
-    (
-      taskId: string,
-      sourceColumnId: string,
-      targetColumnId: string
-    ) => {
-      console.log(
-        `Task ${taskId} moved from ${sourceColumnId} to ${targetColumnId}`
-      );
+  // --- KANBAN DRAG & DROP WITH ROLE RESTRICTIONS & OPTIMISTIC UPDATES ---
+  const handleDragEnd = useCallback(
+    async (result: DropResult) => {
+      const { destination, source, draggableId } = result;
 
-      setTaskRefreshKey(prev => prev + 1);
+      if (!destination) return;
+      if (
+        destination.droppableId === source.droppableId &&
+        destination.index === source.index
+      ) {
+        return;
+      }
+
+      const sourceCol = columns.find((c) => c.id === source.droppableId);
+      const destCol = columns.find((c) => c.id === destination.droppableId);
+      if (!sourceCol || !destCol) return;
+
+      // Role-based movement permissions
+      const userData = localStorage.getItem('user');
+      let userRole: string | null = null;
+      try {
+        userRole = userData ? JSON.parse(userData)?.role : null;
+      } catch {
+        userRole = null;
+      }
+
+      if (destCol.title === 'Completed' && userRole === 'STUDENT') {
+        alert('Permission Denied: Only Faculty or Admin can mark a task as Completed.');
+        return;
+      }
+
+      if (destCol.title === 'Completed' && sourceCol.title !== 'In Review') {
+        alert('Workflow Notice: A task must be moved to "In Review" before it can be Completed.');
+        return;
+      }
+
+      // Snapshot previous columns for rollback on failure
+      const previousColumns = columns;
+
+      // Optimistic update
+      const sourceTasks = Array.from(sourceCol.tasks || []);
+      const [movedTask] = sourceTasks.splice(source.index, 1);
+      if (!movedTask) return;
+
+      const updatedTask: Task = { ...movedTask, columnId: destCol.id };
+
+      let updatedColumns: Column[];
+      if (sourceCol.id === destCol.id) {
+        sourceTasks.splice(destination.index, 0, updatedTask);
+        updatedColumns = columns.map((col) =>
+          col.id === sourceCol.id ? { ...col, tasks: sourceTasks } : col
+        );
+      } else {
+        const destTasks = Array.from(destCol.tasks || []);
+        destTasks.splice(destination.index, 0, updatedTask);
+        updatedColumns = columns.map((col) => {
+          if (col.id === sourceCol.id) return { ...col, tasks: sourceTasks };
+          if (col.id === destCol.id) return { ...col, tasks: destTasks };
+          return col;
+        });
+      }
+
+      setColumns(updatedColumns);
+
+      // Persist changes to PostgreSQL
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found');
+
+        const response = await fetch(`${API_BASE_URL}/api/tasks/reorder`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            taskId: draggableId,
+            targetColumnId: destination.droppableId,
+            newIndex: destination.index,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to move task.');
+        }
+
+        if (userRole === 'STUDENT' && destCol.title === 'In Review') {
+          alert('Task submitted for Faculty Review! Your supervisor will be notified.');
+        }
+      } catch (err) {
+        console.error('Task move error:', err);
+        setColumns(previousColumns); // Rollback
+        alert(err instanceof Error ? err.message : 'Could not move task. Reverting position.');
+      }
     },
-    []
+    [columns]
   );
+
+  // --- TASK STATE HANDLERS ---
+  const handleTaskCreate = useCallback((columnId: string, newTask: Task) => {
+    setColumns((prev) =>
+      prev.map((col) =>
+        col.id === columnId
+          ? { ...col, tasks: [...(col.tasks || []), newTask] }
+          : col
+      )
+    );
+  }, []);
+
+  const handleTaskSave = useCallback((updatedTask: Task) => {
+    setColumns((prev) =>
+      prev.map((col) => {
+        const filtered = (col.tasks || []).filter((t) => t.id !== updatedTask.id);
+        if (col.id === updatedTask.columnId) {
+          return { ...col, tasks: [...filtered, updatedTask] };
+        }
+        return { ...col, tasks: filtered };
+      })
+    );
+  }, []);
+
+  const handleTaskDelete = useCallback((taskId: string) => {
+    setColumns((prev) =>
+      prev.map((col) => ({
+        ...col,
+        tasks: (col.tasks || []).filter((t) => t.id !== taskId),
+      }))
+    );
+  }, []);
 
   // --- DELETE COLUMN ---
   const handleColumnDelete = useCallback(async (columnId: string) => {
@@ -182,8 +307,10 @@ const ProjectBoardPage = () => {
           await projectResponse.json();
 
         setProject({
+          id: projectData.id,
           title: projectData.title,
           description: projectData.description,
+          createdById: (projectData as any).createdById,
           students: projectData.students || [],
           faculty: projectData.faculty || [],
           admins: projectData.admins || [],
@@ -207,12 +334,15 @@ const ProjectBoardPage = () => {
           await columnsResponse.json();
 
         const dynamicColumns: Column[] = fetchedColumns.map(
-          col => ({
+          (col: any) => ({
             ...col,
             id: col.id.toString(),
             projectId: col.projectId.toString(),
             order: col.order,
-            count: 0,
+            tasks: (col.tasks || []).map((t: any) => ({
+              ...t,
+              dueDate: t.dueDate ? new Date(t.dueDate) : null,
+            })),
           })
         );
 
@@ -320,7 +450,7 @@ const ProjectBoardPage = () => {
             ...prev,
             {
               ...newColumnData,
-              count: 0,
+              tasks: [],
             },
           ].sort((a, b) => a.order - b.order)
         );
@@ -449,8 +579,10 @@ const ProjectBoardPage = () => {
           await projectResponse.json();
 
         setProject({
+          id: updatedProject.id,
           title: updatedProject.title,
           description: updatedProject.description,
+          createdById: (updatedProject as any).createdById,
           students: updatedProject.students || [],
           faculty: updatedProject.faculty || [],
           admins: updatedProject.admins || [],
@@ -476,13 +608,37 @@ const ProjectBoardPage = () => {
     [parsedProjectId]
   );
 
+  const fetchProjectDetails = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(`${API_BASE_URL}/api/projects/${parsedProjectId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProject({
+          id: data.id,
+          title: data.title,
+          description: data.description,
+          createdById: data.createdById,
+          students: data.students || [],
+          faculty: data.faculty || [],
+          admins: data.admins || [],
+        });
+      }
+    } catch (err) {
+      console.error('Error refreshing project details:', err);
+    }
+  }, [parsedProjectId]);
+
   // --- LOADING STATE ---
   if (loading) {
     return (
-      <div className="flex">
+      <div className="flex flex-col md:flex-row min-h-screen">
         <Sidebar activeTab="projects" />
 
-        <div className="flex-1 p-10 dashboard-page-bg">
+        <div className="flex-1 p-4 sm:p-6 lg:p-10 dashboard-page-bg">
           <p>Loading project board...</p>
         </div>
       </div>
@@ -492,10 +648,10 @@ const ProjectBoardPage = () => {
   // --- ERROR STATE ---
   if (error) {
     return (
-      <div className="flex">
+      <div className="flex flex-col md:flex-row min-h-screen">
         <Sidebar activeTab="projects" />
 
-        <div className="flex-1 p-10 dashboard-page-bg">
+        <div className="flex-1 p-4 sm:p-6 lg:p-10 dashboard-page-bg">
           <h2>Unable to load project board</h2>
           <p>{error}</p>
         </div>
@@ -504,10 +660,10 @@ const ProjectBoardPage = () => {
   }
 
   return (
-    <div className="flex">
+    <div className="flex flex-col md:flex-row min-h-screen">
       <Sidebar activeTab="projects" />
 
-      <div className="flex-1 p-10 dashboard-page-bg">
+      <div className="flex-1 p-4 sm:p-6 lg:p-10 dashboard-page-bg">
 
         {/* Header Section */}
         <div className="mb-8">
@@ -523,13 +679,25 @@ const ProjectBoardPage = () => {
               </p>
             </div>
 
-            <button
-              className="add-column-button flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition"
-              onClick={handleOpenModal}
-            >
-              <i className="fa fa-plus"></i>
-              Add Column
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="activity-button flex items-center gap-2 px-5 py-3 rounded-xl font-semibold bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 transition shadow-sm"
+                onClick={() => setIsActivityModalOpen(true)}
+              >
+                <i className="fa fa-history text-purple-600"></i>
+                Activity History
+              </button>
+
+              <button
+                type="button"
+                className="add-column-button flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition"
+                onClick={handleOpenModal}
+              >
+                <i className="fa fa-plus"></i>
+                Add Column
+              </button>
+            </div>
           </div>
 
           {/* Project Team */}
@@ -549,17 +717,21 @@ const ProjectBoardPage = () => {
                   People
                 </span>
 
-                <button
-                  type="button"
-                  className="manage-team-button"
-                  onClick={() => {
-                    setIsManageTeamModalOpen(true);
-                    fetchTeamOptions();
-                  }}
-                >
-                  <i className="fa fa-users-cog"></i>
-                  Manage Team
-                </button>
+                {canManageTeam && (
+                  <button
+                    type="button"
+                    className="manage-team-button"
+                    onClick={() => {
+                      setIsManageTeamModalOpen(true);
+                      if (isAdmin) {
+                        fetchTeamOptions();
+                      }
+                    }}
+                  >
+                    <i className="fa fa-users-cog"></i>
+                    {isOwner ? 'Invite & Manage Team' : 'Manage Team'}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -652,32 +824,34 @@ const ProjectBoardPage = () => {
         {/* Project Skills */}
         <ProjectSkills projectId={projectId!} />
 
-        {/* Kanban Board Columns */}
-        <div className="kanban-board-grid">
-
-          {columns.length > 0 ? (
-            columns.map(column => (
-              <KanbanColumn
-                key={column.id}
-                columnId={column.id}
-                title={column.title}
-                colorClass={column.colorClass}
-                onColumnDelete={handleColumnDelete}
-                onTaskMove={handleTaskMove}
-                refreshKey={taskRefreshKey}
-                completedColumnId={completedColumnId}
-                inProgressColumnId={inProgressColumnId}
-                targetTaskId={targetTaskId}
-                onTaskAutoOpened={handleTaskAutoOpened}
-              />
-            ))
-          ) : (
-            <p className="text-gray-500">
-              No columns found for this project. Add one now!
-            </p>
-          )}
-
-        </div>
+        {/* Kanban Board Columns with Drag and Drop */}
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="kanban-board-grid">
+            {columns.length > 0 ? (
+              columns.map((column) => (
+                <KanbanColumn
+                  key={column.id}
+                  columnId={column.id}
+                  title={column.title}
+                  colorClass={column.colorClass}
+                  tasks={column.tasks || []}
+                  onColumnDelete={handleColumnDelete}
+                  onTaskCreate={handleTaskCreate}
+                  onTaskSave={handleTaskSave}
+                  onTaskDelete={handleTaskDelete}
+                  completedColumnId={completedColumnId}
+                  inProgressColumnId={inProgressColumnId}
+                  targetTaskId={targetTaskId}
+                  onTaskAutoOpened={handleTaskAutoOpened}
+                />
+              ))
+            ) : (
+              <p className="text-gray-500">
+                No columns found for this project. Add one now!
+              </p>
+            )}
+          </div>
+        </DragDropContext>
       </div>
 
       {/* Add Column Modal */}
@@ -694,6 +868,10 @@ const ProjectBoardPage = () => {
         <ManageTeamModal
           isOpen={isManageTeamModalOpen}
           onClose={() => setIsManageTeamModalOpen(false)}
+          projectId={parsedProjectId!}
+          createdById={project.createdById}
+          currentUserRole={user?.role}
+          currentUserId={user?.id}
           students={teamOptions.students}
           faculty={teamOptions.faculty}
           admins={teamOptions.admins}
@@ -701,6 +879,16 @@ const ProjectBoardPage = () => {
           assignedFaculty={project.faculty}
           assignedAdmins={project.admins}
           onSave={handleSaveTeam}
+          onTeamUpdated={fetchProjectDetails}
+        />
+      )}
+
+      {/* Activity History Modal */}
+      {isActivityModalOpen && (
+        <ActivityHistoryModal
+          projectId={parsedProjectId!}
+          isOpen={isActivityModalOpen}
+          onClose={() => setIsActivityModalOpen(false)}
         />
       )}
 

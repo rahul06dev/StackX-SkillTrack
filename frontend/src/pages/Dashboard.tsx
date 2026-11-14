@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import DashboardStats from '../components/DashboardStats';
 import ProjectList from '../components/ProjectList';
@@ -28,7 +28,7 @@ interface DashboardTask extends Task {
     projectId: string; // The ID of the parent project
 }
 
-const API_BASE_URL = 'http://localhost:4300';
+import { API_BASE_URL } from '../config/api';
 
 const Dashboard = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -125,9 +125,9 @@ const Dashboard = () => {
 
 
   return (
-    <div className="flex">
+    <div className="flex flex-col md:flex-row min-h-screen">
       <Sidebar activeTab="dashboard" />
-      <div className="flex-1 p-10 dashboard-page-bg">
+      <div className="flex-1 p-4 sm:p-6 lg:p-10 dashboard-page-bg">
         <h1 className="text-4xl font-bold mb-4 welcome-heading">Welcome back! 👋</h1>
         <p className="text-gray-600 mb-8">Here's what's happening with your projects today</p>
 

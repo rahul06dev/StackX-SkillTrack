@@ -1,4 +1,4 @@
-import React, {
+import {
   useState,
   useMemo,
   useCallback,
@@ -6,6 +6,7 @@ import React, {
   useEffect,
 } from 'react';
 import CommentsTabContent from './CommentsTabContent';
+import { API_BASE_URL } from '../config/api';
 
 // --- Interfaces ---
 interface Task {
@@ -20,12 +21,12 @@ interface Task {
 }
 
 interface Attachment {
-  id: number;
+  id: string;
   fileName: string;
   fileSize: number;
+  mimeType: string;
   uploadedBy: string;
-  uploadDate: string;
-  fileType: string;
+  createdAt: string;
 }
 
 interface Comment {
@@ -67,7 +68,7 @@ const getCurrentUserRole = () => {
   return user?.role || null;
 };
 
-const formatFileSize = (bytes: number) => {
+export const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 Bytes';
 
   const k = 1024;
@@ -81,7 +82,7 @@ const formatFileSize = (bytes: number) => {
   );
 };
 
-const getFileIcon = (fileType: string) => {
+export const getFileIcon = (fileType: string) => {
   if (fileType.includes('image')) return 'fa-image';
   if (fileType.includes('pdf')) return 'fa-file-pdf';
   if (
@@ -143,9 +144,10 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     'details' | 'attachments' | 'comments'
   >('details');
 
-  const [attachments, setAttachments] = useState<Attachment[]>(
-    []
-  );
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [loadingAttachments, setLoadingAttachments] = useState(false);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   const [comments, setComments] = useState<Comment[]>([]);
 
@@ -153,8 +155,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
   const [currentDate, setCurrentDate] = useState(new Date());
-
-  const API_BASE_URL = 'http://localhost:4300';
 
   // --- EFFECT TO INITIALIZE STATE WHEN TASK / MODAL CHANGES ---
   useEffect(() => {
@@ -225,7 +225,27 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         );
       }
 
-      // Future: Fetch Attachments
+      // Fetch Attachments
+      try {
+        setLoadingAttachments(true);
+        const attResponse = await fetch(
+          `${API_BASE_URL}/api/attachments/task/${task.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (attResponse.ok) {
+          const fetchedAtt = await attResponse.json();
+          setAttachments(fetchedAtt);
+        }
+      } catch (err) {
+        console.error('Error fetching attachments:', err);
+      } finally {
+        setLoadingAttachments(false);
+      }
     };
 
     fetchTaskData();
@@ -490,30 +510,168 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     []
   );
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setUploadingAttachment(true);
+    setAttachmentError(null);
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch(`${API_BASE_URL}/api/attachments/task/${task.id}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || `Failed to upload ${file.name}`);
+        }
+
+        const uploaded: Attachment = await res.json();
+        setAttachments((prev) => [uploaded, ...prev]);
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      setAttachmentError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingAttachment(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDownloadAttachment = async (att: Attachment) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/attachments/${att.id}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Error downloading:', err);
+      alert('Failed to download attachment.');
+    }
+  };
+
+  const handleDeleteAttachment = async (attId: string, fileName: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${fileName}"?`)) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/attachments/${attId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to delete attachment');
+      }
+      setAttachments((prev) => prev.filter((a) => a.id !== attId));
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert(err instanceof Error ? err.message : 'Could not delete attachment.');
+    }
+  };
+
   const AttachmentsTabContent = () => (
-    <div className="attachments-tab-content space-y-4">
+    <div className="attachments-tab-content space-y-4 p-2">
       <input
         type="file"
         ref={fileInputRef}
-        onChange={() => {
-          /* handleFileSelect(e) */
-        }}
+        onChange={handleFileUpload}
         multiple
         className="hidden"
       />
 
       <div
-        className="attachment-dropzone p-10 text-center cursor-pointer"
+        className="attachment-dropzone p-8 text-center cursor-pointer border-2 border-dashed border-purple-200 rounded-xl hover:border-purple-400 bg-purple-50/50 transition"
         onClick={triggerFileInput}
       >
-        <i className="fa fa-cloud-upload-alt fa-3x text-purple-400 mb-3 upload-icon"></i>
-
-        <p className="text-gray-600 font-medium">
-          Click to upload files
+        <i className="fa fa-cloud-upload-alt text-4xl text-purple-500 mb-2"></i>
+        <p className="text-gray-700 font-medium">
+          {uploadingAttachment ? 'Uploading files...' : 'Click or drop files to upload'}
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          Supported: PDF, Images, Word, Excel, ZIP, Code (up to 15MB)
         </p>
       </div>
 
-      {/* Attachment list rendering */}
+      {attachmentError && (
+        <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
+          <i className="fa fa-exclamation-triangle"></i>
+          <span>{attachmentError}</span>
+        </div>
+      )}
+
+      {loadingAttachments ? (
+        <div className="text-center py-6 text-gray-400 text-sm">
+          <i className="fa fa-spinner fa-spin mr-2"></i> Loading attachments...
+        </div>
+      ) : attachments.length === 0 ? (
+        <div className="text-center py-6 text-gray-400 text-sm">
+          No attachments uploaded for this task yet.
+        </div>
+      ) : (
+        <div className="attachments-list space-y-2 mt-4">
+          {attachments.map((att) => (
+            <div
+              key={att.id}
+              className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl border border-gray-200 transition"
+            >
+              <div className="flex items-center gap-3 overflow-hidden">
+                <i className={`fa ${getFileIcon(att.mimeType || att.fileName)} text-xl text-purple-600`}></i>
+                <div className="truncate">
+                  <p className="font-semibold text-sm text-gray-800 truncate" title={att.fileName}>
+                    {att.fileName}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {formatFileSize(att.fileSize)} • Uploaded by {att.uploadedBy} on {new Date(att.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadAttachment(att)}
+                  className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                  title="Download file"
+                >
+                  <i className="fa fa-download"></i>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAttachment(att.id, att.fileName)}
+                  className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                  title="Delete file"
+                >
+                  <i className="fa fa-trash-alt"></i>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -583,7 +741,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         </div>
 
         {/* Body Content */}
-        <div className="modal-body p-6">
+        <div className="modal-body p-4 sm:p-6">
 
           {activeTab === 'details' && (
             <div className="details-tab-content space-y-6">
@@ -607,7 +765,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
 
                 {/* Assignee */}
                 <div className="input-group">
@@ -679,7 +837,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               </div>
 
               {/* Due Date */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
 
                 <div className="input-group relative">
 

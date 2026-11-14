@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import '../auth.css';
 
-const API_BASE_URL = 'http://localhost:4300';
+import { API_BASE_URL } from '../config/api';
 
 interface Skill {
   id: string;

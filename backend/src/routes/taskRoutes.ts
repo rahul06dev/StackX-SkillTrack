@@ -49,9 +49,9 @@ const userHasProjectAccess = async (
         return null;
     }
 
-    // Student → must be explicitly assigned.
+    // Student → must be explicitly assigned or project creator.
     if (req.user.role === 'STUDENT') {
-        return project.students.length > 0;
+        return project.students.length > 0 || project.createdById === req.user.id;
     }
 
     // Faculty → assigned faculty OR project creator.
@@ -411,13 +411,10 @@ router.get(
 // PUT /api/tasks/:id
 // ==========================================
 
-router.put(
-    '/:id',
-    authenticateUser,
-    async (
-        req: AuthenticatedRequest,
-        res
-    ) => {
+const updateTaskHandler = async (
+    req: AuthenticatedRequest,
+    res: any
+) => {
         const { id } = req.params;
 
         const {
@@ -606,8 +603,10 @@ router.put(
                 error,
             });
         }
-    }
-);
+    };
+
+router.put('/:id', authenticateUser, updateTaskHandler);
+router.patch('/:id', authenticateUser, updateTaskHandler);
 
 
 // ==========================================

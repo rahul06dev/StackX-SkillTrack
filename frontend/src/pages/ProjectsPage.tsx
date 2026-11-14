@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import Sidebar from '../components/Sidebar';
@@ -14,7 +14,7 @@ interface Project {
   members: number;
 }
 
-const API_BASE_URL = 'http://localhost:4300';
+import { API_BASE_URL } from '../config/api';
 
 const ProjectsPage = () => {
   const userData = localStorage.getItem('user');
@@ -77,17 +77,22 @@ const ProjectsPage = () => {
   useEffect(() => {
     const shouldCreate = searchParams.get('create');
 
-    if (
-      shouldCreate === 'true' &&
-      (user?.role === 'FACULTY' || user?.role === 'ADMIN')
-    ) {
+    if (shouldCreate === 'true') {
       setIsModalOpen(true);
     }
-  }, [searchParams, user?.role]);
+  }, [searchParams]);
 
-  const handleProjectCreated = (newProject: Project) => {
+  const handleProjectCreated = (newProject: any) => {
+    const formattedProject: Project = {
+      id: newProject.id,
+      title: newProject.title,
+      description: newProject.description,
+      tasks: newProject.tasks ?? newProject.tasksCount ?? 0,
+      members: newProject.members ?? newProject.membersCount ?? 0,
+    };
+
     setProjects((currentProjects) => [
-      newProject,
+      formattedProject,
       ...currentProjects,
     ]);
 
@@ -166,15 +171,13 @@ const ProjectsPage = () => {
             </p>
           </div>
 
-          {(user?.role === 'FACULTY' || user?.role === 'ADMIN') && (
-            <button
-              onClick={handleOpenModal}
-              className="projects-new-button"
-            >
-              <span>+</span>
-              New Project
-            </button>
-          )}
+          <button
+            onClick={handleOpenModal}
+            className="projects-new-button"
+          >
+            <span>+</span>
+            New Project
+          </button>
 
         </div>
 
@@ -203,26 +206,27 @@ const ProjectsPage = () => {
 
             <div className="projects-empty-state">
 
-              <div className="projects-empty-icon">
-                +
+              <div className="projects-empty-icon" style={{ fontSize: '32px', color: '#4f46e5' }}>
+                <i className="fa fa-folder-open"></i>
               </div>
 
               <h2>No projects yet</h2>
 
               <p>
                 {user?.role === 'STUDENT'
-                  ? 'You have no projects assigned to you yet.'
-                  : 'Create a project to start tracking tasks and progress.'}
+                  ? 'You haven’t created or joined any projects yet. Start an academic project or collaborate with your peers!'
+                  : user?.role === 'FACULTY'
+                    ? 'No projects under your supervision yet. Projects assigned to you will appear here.'
+                    : 'Create a project to start tracking tasks and mapping competency skills.'}
               </p>
 
-              {(user?.role === 'FACULTY' || user?.role === 'ADMIN') && (
-                <button
-                  onClick={handleOpenModal}
-                  className="projects-new-button"
-                >
-                  + Create Project
-                </button>
-              )}
+              <button
+                onClick={handleOpenModal}
+                className="skilltrack-btn-primary"
+                style={{ marginTop: '14px' }}
+              >
+                <i className="fa fa-plus"></i> Create New Project
+              </button>
 
             </div>
 

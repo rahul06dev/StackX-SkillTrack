@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config/api';
 import '../auth.css';
 
 const LandingPage = () => {
@@ -18,7 +19,7 @@ const LandingPage = () => {
 
     try {
       const response = await fetch(
-        'http://localhost:4300/api/auth/login',
+        `${API_BASE_URL}/api/auth/login`,
         {
           method: 'POST',
           headers: {

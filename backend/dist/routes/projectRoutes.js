@@ -1,11 +1,15 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticateUser, authorizeRoles, } from '../middleware/authMiddleware.js';
+import { authenticateUser, authorizeRoles, authorizeProjectAccess, } from '../middleware/authMiddleware.js';
+import { executeRuleEngine } from '../services/ruleEngine.js';
+import { logActivity } from '../services/activityService.js';
+import { createNotification } from '../services/notificationService.js';
 const prisma = new PrismaClient();
 const router = Router();
 router.get('/admin/overview', authenticateUser, authorizeRoles('ADMIN'), async (req, res) => {
     try {
-        const [totalUsers, totalStudents, totalFaculty, totalProjects, activeProjects, completedProjects,] = await Promise.all([
+        const now = new Date();
+        const [totalUsers, totalStudents, totalFaculty, totalProjects, activeProjects, completedProjects, overdueProjects, unassignedGuideProjects, pendingInvitationsCount, totalTasksCount,] = await Promise.all([
             prisma.user.count(),
             prisma.user.count({
                 where: {
@@ -28,6 +32,34 @@ router.get('/admin/overview', authenticateUser, authorizeRoles('ADMIN'), async (
                     status: 'COMPLETED',
                 },
             }),
+            prisma.project.count({
+                where: {
+                    status: 'ACTIVE',
+                    columns: {
+                        some: {
+                            title: { notIn: ['Completed', 'Done'] },
+                            tasks: {
+                                some: {
+                                    dueDate: {
+                                        lt: now,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            }),
+            prisma.project.count({
+                where: {
+                    assignedFacultyId: null,
+                },
+            }),
+            prisma.projectInvitation.count({
+                where: {
+                    status: 'PENDING',
+                },
+            }),
+            prisma.task.count(),
         ]);
         res.json({
             totalUsers,
@@ -36,6 +68,10 @@ router.get('/admin/overview', authenticateUser, authorizeRoles('ADMIN'), async (
             totalProjects,
             activeProjects,
             completedProjects,
+            overdueProjects,
+            unassignedGuideProjects,
+            pendingInvitationsCount,
+            totalTasksCount,
         });
     }
     catch (error) {
@@ -63,7 +99,11 @@ router.get('/admin/recent', authenticateUser, authorizeRoles('ADMIN'), async (re
             },
             take: 5,
         });
-        res.json(projects);
+        const formatted = projects.map(p => ({
+            ...p,
+            peopleCount: p.membersCount,
+        }));
+        res.json(formatted);
     }
     catch (error) {
         console.error('❌ Error fetching recent admin projects:', error);
@@ -140,6 +180,14 @@ router.get('/admin/projects', authenticateUser, authorizeRoles('ADMIN'), async (
                 admins,
                 createdAt: project.createdAt,
                 updatedAt: project.updatedAt,
+                createdById: project.createdById,
+                assignedFaculty: project.assignedFaculty
+                    ? {
+                        id: project.assignedFaculty.id,
+                        name: project.assignedFaculty.name,
+                        email: project.assignedFaculty.email,
+                    }
+                    : null,
             };
         });
         res.json(formattedProjects);
@@ -152,75 +200,105 @@ router.get('/admin/projects', authenticateUser, authorizeRoles('ADMIN'), async (
     }
 });
 // --- Project GET Route ---
-// --- Project GET Route ---
 router.get('/', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN'), async (req, res) => {
     try {
-        let projects;
-        if (req.user?.role === 'STUDENT') {
-            projects = await prisma.project.findMany({
-                where: {
-                    students: {
-                        some: {
-                            studentId: req.user.id,
-                        },
+        const userWhereClause = req.user?.role === 'STUDENT'
+            ? {
+                students: {
+                    some: {
+                        studentId: req.user.id,
                     },
                 },
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    tasksCount: true,
-                    membersCount: true,
-                },
-                orderBy: {
-                    createdAt: 'desc',
-                },
-            });
-        }
-        else if (req.user?.role === 'FACULTY') {
-            // Faculty can see projects assigned to them
-            // or projects created by them
-            projects = await prisma.project.findMany({
-                where: {
+            }
+            : req.user?.role === 'FACULTY'
+                ? {
                     OR: [
                         { assignedFacultyId: req.user.id },
                         { createdById: req.user.id },
                     ],
+                }
+                : {};
+        const projects = await prisma.project.findMany({
+            where: userWhereClause,
+            include: {
+                students: {
+                    include: {
+                        student: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                                role: true,
+                            },
+                        },
+                    },
                 },
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    tasksCount: true,
-                    membersCount: true,
+                assignedFaculty: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        role: true,
+                    },
                 },
-                orderBy: {
-                    createdAt: 'desc',
+                admins: {
+                    include: {
+                        admin: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                                role: true,
+                            },
+                        },
+                    },
                 },
-            });
-        }
-        else {
-            // Admin can see all projects
-            projects = await prisma.project.findMany({
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    tasksCount: true,
-                    membersCount: true,
+                columns: {
+                    include: {
+                        tasks: {
+                            select: {
+                                id: true,
+                                dueDate: true,
+                            },
+                        },
+                    },
                 },
-                orderBy: {
-                    createdAt: 'desc',
-                },
-            });
-        }
-        const formattedProjects = projects.map(p => ({
-            id: p.id,
-            title: p.title,
-            description: p.description,
-            tasks: p.tasksCount,
-            members: p.membersCount,
-        }));
+            },
+            orderBy: {
+                updatedAt: 'desc',
+            },
+        });
+        const formattedProjects = projects.map((project) => {
+            const students = project.students.map((assignment) => assignment.student);
+            const faculty = project.assignedFaculty ? [project.assignedFaculty] : [];
+            const admins = project.admins.map((assignment) => assignment.admin);
+            const tasksCount = project.columns.reduce((acc, column) => acc + column.tasks.length, 0);
+            const peopleCount = students.length + faculty.length + admins.length;
+            return {
+                id: project.id,
+                title: project.title,
+                description: project.description,
+                status: project.status,
+                tasksCount,
+                tasks: tasksCount, // Alias for backward compatibility
+                membersCount: peopleCount,
+                peopleCount, // Alias
+                members: peopleCount, // Alias
+                students,
+                faculty,
+                admins,
+                createdAt: project.createdAt,
+                updatedAt: project.updatedAt,
+                createdById: project.createdById,
+                assignedFaculty: project.assignedFaculty
+                    ? {
+                        id: project.assignedFaculty.id,
+                        name: project.assignedFaculty.name,
+                        email: project.assignedFaculty.email,
+                    }
+                    : null,
+            };
+        });
         res.json(formattedProjects);
     }
     catch (error) {
@@ -328,6 +406,22 @@ router.get('/team-options', authenticateUser, authorizeRoles('ADMIN'), async (re
         });
     }
 });
+// --- Faculty List Route (for Project Guide Assignment / Invitations) ---
+// Must be registered BEFORE /:id to prevent /faculty-list being captured as :id
+router.get('/faculty-list', authenticateUser, async (req, res) => {
+    try {
+        const faculty = await prisma.user.findMany({
+            where: { role: 'FACULTY' },
+            select: { id: true, name: true, email: true },
+            orderBy: { name: 'asc' },
+        });
+        return res.json(faculty);
+    }
+    catch (error) {
+        console.error('Error fetching faculty list:', error);
+        return res.status(500).json({ message: 'Failed to fetch faculty list.' });
+    }
+});
 router.get('/:id', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN'), async (req, res) => {
     try {
         const projectId = req.params.id;
@@ -407,6 +501,9 @@ router.get('/:id', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN
             id: project.id,
             title: project.title,
             description: project.description,
+            createdById: project.createdById,
+            assignedFacultyId: project.assignedFacultyId,
+            status: project.status,
             students,
             faculty,
             admins,
@@ -419,7 +516,7 @@ router.get('/:id', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN
         });
     }
 });
-router.put('/:id/team', authenticateUser, authorizeRoles('ADMIN'), async (req, res) => {
+router.put('/:id/team', authenticateUser, authorizeRoles('ADMIN', 'FACULTY'), async (req, res) => {
     try {
         const projectId = req.params.id;
         const { studentIds = [], facultyId = null, adminIds = [], } = req.body;
@@ -448,6 +545,16 @@ router.put('/:id/team', authenticateUser, authorizeRoles('ADMIN'), async (req, r
             return res.status(404).json({
                 message: 'Project not found.',
             });
+        }
+        // Faculty permission check: only allowed for supervised or created projects
+        if (req.user?.role === 'FACULTY') {
+            const isSupervisedOrCreated = project.assignedFacultyId === req.user.id ||
+                project.createdById === req.user.id;
+            if (!isSupervisedOrCreated) {
+                return res.status(403).json({
+                    message: 'You can only update team assignments for projects you supervise or created.',
+                });
+            }
         }
         // Validate Faculty
         if (facultyId) {
@@ -543,11 +650,11 @@ router.put('/:id/team', authenticateUser, authorizeRoles('ADMIN'), async (req, r
     }
 });
 // --- Project POST Route (Create New Project) ---
-// --- Project POST Route (Create New Project) ---
-// --- Project POST Route (Create New Project) ---
-// Automatically maps matching skills to new projects.
-router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN'), async (req, res) => {
-    const { title, description, studentIds } = req.body;
+// Applies rule-based mapping engine (R ⊆ T × S) from submitted technologies
+// and project context to catalogue skills.
+// Supports STUDENT, FACULTY, and ADMIN creation.
+router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT'), async (req, res) => {
+    const { title, description, studentIds, technologies, assignedFacultyId } = req.body;
     if (typeof title !== 'string' ||
         !title.trim() ||
         typeof description !== 'string' ||
@@ -557,111 +664,208 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN'), async (re
         });
     }
     try {
+        const userRole = req.user?.role;
+        const userId = req.user.id;
         const projectText = `${title} ${description}`;
+        // Parse technologies if provided as array or comma-separated string
+        let techList = [];
+        if (Array.isArray(technologies)) {
+            techList = technologies.map(t => String(t).trim()).filter(Boolean);
+        }
+        else if (typeof technologies === 'string' && technologies.trim()) {
+            techList = technologies.split(',').map(t => t.trim()).filter(Boolean);
+        }
         // Fetch active skills from the Admin-managed catalogue.
         const activeSkills = await prisma.skill.findMany({
-            where: {
-                isActive: true,
-            },
-            select: {
-                id: true,
-                name: true,
-            },
+            where: { isActive: true },
+            select: { id: true, name: true, category: true },
         });
-        // Match complete skill names, ignoring letter case.
-        // Spaces in multi-word skill names may vary.
-        const matchedSkills = activeSkills.filter((skill) => {
-            const escapedName = skill.name
-                .trim()
-                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                .replace(/\s+/g, '\\s+');
-            if (!escapedName) {
-                return false;
-            }
-            const pattern = new RegExp(`(^|[^a-zA-Z0-9])${escapedName}($|[^a-zA-Z0-9])`, 'i');
-            return pattern.test(projectText);
-        });
+        // Execute Formal Rule-Based Mapping Engine (R ⊆ T × S)
+        const mappedResults = executeRuleEngine(techList, projectText, activeSkills);
+        const matchedSkillIds = Array.from(new Set(mappedResults.map(m => m.skillId)));
+        const isStudent = userRole === 'STUDENT';
+        // Build student enrollment list
+        // For student creators: only creator is enrolled immediately; teammates will be invited
+        let studentCreateList = [];
+        if (isStudent) {
+            studentCreateList = [{ student: { connect: { id: userId } } }];
+        }
+        else if (Array.isArray(studentIds)) {
+            studentCreateList = studentIds.map((studentId) => ({
+                student: { connect: { id: studentId } },
+            }));
+        }
+        // For students: assignedFacultyId is null initially until faculty accepts supervision invitation.
+        // For Admin/Faculty: assignedFacultyId is assigned directly.
+        const directFacultyId = isStudent ? null : (assignedFacultyId || null);
         const newProject = await prisma.project.create({
             data: {
                 title: title.trim(),
                 description: description.trim(),
-                createdById: req.user.id,
+                createdById: userId,
+                assignedFacultyId: directFacultyId,
                 students: {
-                    create: Array.isArray(studentIds)
-                        ? studentIds.map((studentId) => ({
-                            student: {
-                                connect: {
-                                    id: studentId,
-                                },
-                            },
-                        }))
-                        : [],
+                    create: studentCreateList,
                 },
-                // Automatically attach matching catalogue skills.
+                admins: userRole === 'ADMIN' ? {
+                    create: [{ admin: { connect: { id: userId } } }],
+                } : undefined,
+                // Attach matched skills
                 projectSkills: {
-                    create: matchedSkills.map((skill) => ({
-                        skill: {
-                            connect: {
-                                id: skill.id,
-                            },
-                        },
+                    create: matchedSkillIds.map((skillId) => ({
+                        skill: { connect: { id: skillId } },
                     })),
                 },
-                // Preserve the existing default Kanban columns.
+                // Default Kanban columns
                 columns: {
                     create: [
-                        {
-                            title: 'To Do',
-                            colorClass: 'todo',
-                            order: 0,
-                        },
-                        {
-                            title: 'In Progress',
-                            colorClass: 'in-progress',
-                            order: 1,
-                        },
-                        {
-                            title: 'In Review',
-                            colorClass: 'in-review',
-                            order: 2,
-                        },
-                        {
-                            title: 'Completed',
-                            colorClass: 'completed',
-                            order: 3,
-                        },
+                        { title: 'To Do', colorClass: 'todo', order: 0 },
+                        { title: 'In Progress', colorClass: 'in-progress', order: 1 },
+                        { title: 'In Review', colorClass: 'in-review', order: 2 },
+                        { title: 'Completed', colorClass: 'completed', order: 3 },
                     ],
                 },
             },
             include: {
                 students: true,
                 columns: {
-                    orderBy: {
-                        order: 'asc',
-                    },
+                    orderBy: { order: 'asc' },
                 },
                 projectSkills: {
                     include: {
                         skill: {
-                            select: {
-                                id: true,
-                                name: true,
-                                category: true,
-                            },
+                            select: { id: true, name: true, category: true },
                         },
                     },
                 },
             },
         });
+        // For student-created projects, dispatch pending invitations to teammates & faculty guide
+        if (isStudent) {
+            const creatorUser = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { name: true },
+            });
+            // 1. Dispatch Faculty Guide invitation if requested
+            if (assignedFacultyId) {
+                const facultyUser = await prisma.user.findFirst({
+                    where: { id: assignedFacultyId, role: 'FACULTY' },
+                });
+                if (facultyUser) {
+                    await prisma.projectInvitation.create({
+                        data: {
+                            projectId: newProject.id,
+                            recipientId: assignedFacultyId,
+                            invitedById: userId,
+                            type: 'FACULTY_GUIDE',
+                            status: 'PENDING',
+                            message: `Invited to supervise "${newProject.title}" as academic faculty guide.`,
+                        },
+                    });
+                    // Role-specific notification to faculty
+                    await createNotification({
+                        userId: assignedFacultyId,
+                        type: 'FACULTY_SUPERVISION_REQUEST',
+                        title: 'Project Supervision Request',
+                        message: `${creatorUser?.name || 'A student'} requested your academic guidance for "${newProject.title}".`,
+                        link: '/faculty',
+                    });
+                }
+            }
+            // 2. Dispatch Team Member invitations if requested
+            if (Array.isArray(studentIds) && studentIds.length > 0) {
+                const otherStudentIds = studentIds.filter((sId) => sId !== userId);
+                for (const sId of otherStudentIds) {
+                    const studentUser = await prisma.user.findFirst({
+                        where: { id: sId, role: 'STUDENT' },
+                    });
+                    if (studentUser) {
+                        await prisma.projectInvitation.create({
+                            data: {
+                                projectId: newProject.id,
+                                recipientId: sId,
+                                invitedById: userId,
+                                type: 'TEAM_MEMBER',
+                                status: 'PENDING',
+                                message: `Invited to join project team for "${newProject.title}".`,
+                            },
+                        });
+                        // Role-specific notification to invited student
+                        await createNotification({
+                            userId: sId,
+                            type: 'PROJECT_INVITATION',
+                            title: 'Project Team Invitation',
+                            message: `${creatorUser?.name || 'A classmate'} invited you to join the team for "${newProject.title}".`,
+                            link: `/projects/${newProject.id}`,
+                        });
+                    }
+                }
+            }
+        }
+        // If created by a student, automatically generate PENDING StudentSkill claims
+        // backed by this new project evidence (paper Eq. 1-2) using an atomic transaction (Phase 8)
+        if (isStudent && matchedSkillIds.length > 0) {
+            for (const skillId of matchedSkillIds) {
+                try {
+                    await prisma.$transaction(async (tx) => {
+                        const studentSkill = await tx.studentSkill.upsert({
+                            where: {
+                                studentId_skillId: {
+                                    studentId: userId,
+                                    skillId,
+                                },
+                            },
+                            create: {
+                                studentId: userId,
+                                skillId,
+                                level: 'BEGINNER',
+                                verification: 'PENDING',
+                            },
+                            update: {},
+                        });
+                        await tx.studentSkillEvidence.upsert({
+                            where: {
+                                studentSkillId_projectId: {
+                                    studentSkillId: studentSkill.id,
+                                    projectId: newProject.id,
+                                },
+                            },
+                            create: {
+                                studentSkillId: studentSkill.id,
+                                projectId: newProject.id,
+                            },
+                            update: {},
+                        });
+                    });
+                }
+                catch (skillErr) {
+                    console.error('Error auto-creating student skill claim:', skillErr);
+                }
+            }
+        }
+        // Log project creation activity
+        const creator = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { name: true },
+        });
+        await logActivity({
+            projectId: newProject.id,
+            userId,
+            userName: creator?.name || 'User',
+            action: 'PROJECT_CREATED',
+            details: `Project "${newProject.title}" created (${userRole})`,
+        });
         return res.status(201).json({
             id: newProject.id,
             title: newProject.title,
             description: newProject.description,
+            createdById: newProject.createdById,
+            assignedFacultyId: newProject.assignedFacultyId,
             tasks: newProject.tasksCount,
             members: newProject.membersCount,
             columns: newProject.columns,
-            // Skills matched automatically.
-            matchedSkills: newProject.projectSkills.map((projectSkill) => projectSkill.skill),
+            mappedSkills: newProject.projectSkills.map(ps => ps.skill),
+            ruleMatches: mappedResults,
         });
     }
     catch (error) {
@@ -669,6 +873,106 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN'), async (re
         return res.status(500).json({
             message: 'Failed to create project.',
         });
+    }
+});
+// --- Submit Technologies for a Project ---
+// Enables students and faculty to log tools, frameworks, and technologies.
+// Runs the rule mapping engine to detect skills and generates PENDING claims.
+router.post('/:id/technologies', authenticateUser, authorizeProjectAccess, async (req, res) => {
+    try {
+        const projectId = req.params.id;
+        const { technologies } = req.body;
+        const userId = req.user.id;
+        const userRole = req.user.role;
+        let techList = [];
+        if (Array.isArray(technologies)) {
+            techList = technologies.map(t => String(t).trim()).filter(Boolean);
+        }
+        else if (typeof technologies === 'string' && technologies.trim()) {
+            techList = technologies.split(',').map(t => t.trim()).filter(Boolean);
+        }
+        if (techList.length === 0) {
+            return res.status(400).json({ message: 'Please provide at least one technology or tool.' });
+        }
+        const project = await prisma.project.findUnique({
+            where: { id: projectId },
+            select: { id: true, title: true, description: true },
+        });
+        if (!project) {
+            return res.status(404).json({ message: 'Project not found.' });
+        }
+        const activeSkills = await prisma.skill.findMany({
+            where: { isActive: true },
+            select: { id: true, name: true, category: true },
+        });
+        const projectText = `${project.title} ${project.description}`;
+        const mappedResults = executeRuleEngine(techList, projectText, activeSkills);
+        const skillIds = Array.from(new Set(mappedResults.map(m => m.skillId)));
+        const newlyAddedSkills = [];
+        for (const skillId of skillIds) {
+            const existing = await prisma.projectSkill.findUnique({
+                where: {
+                    projectId_skillId: {
+                        projectId,
+                        skillId,
+                    },
+                },
+            });
+            if (!existing) {
+                const created = await prisma.projectSkill.create({
+                    data: {
+                        projectId,
+                        skillId,
+                    },
+                    include: {
+                        skill: {
+                            select: { id: true, name: true, category: true },
+                        },
+                    },
+                });
+                newlyAddedSkills.push(created.skill);
+            }
+            // If caller is student, generate student skill claim in PENDING state
+            if (userRole === 'STUDENT') {
+                const studentSkill = await prisma.studentSkill.upsert({
+                    where: {
+                        studentId_skillId: {
+                            studentId: userId,
+                            skillId,
+                        },
+                    },
+                    create: {
+                        studentId: userId,
+                        skillId,
+                        level: 'BEGINNER',
+                        verification: 'PENDING',
+                    },
+                    update: {},
+                });
+                await prisma.studentSkillEvidence.upsert({
+                    where: {
+                        studentSkillId_projectId: {
+                            studentSkillId: studentSkill.id,
+                            projectId,
+                        },
+                    },
+                    create: {
+                        studentSkillId: studentSkill.id,
+                        projectId,
+                    },
+                    update: {},
+                });
+            }
+        }
+        return res.json({
+            message: `Technologies processed. ${newlyAddedSkills.length} new skill(s) mapped.`,
+            newlyAddedSkills,
+            mappedSkills: mappedResults,
+        });
+    }
+    catch (error) {
+        console.error('Error logging technologies:', error);
+        return res.status(500).json({ message: 'Failed to log technologies.' });
     }
 });
 export default router;

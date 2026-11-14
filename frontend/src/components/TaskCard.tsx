@@ -10,6 +10,7 @@ interface Task {
     dueDate?: Date | null;
     columnId: string;
     commentsCount?: number;
+    attachmentsCount?: number;
 }
 
 interface TaskCardProps {
@@ -76,8 +77,17 @@ const TaskCard: React.FC<TaskCardProps> = ({
         <div
             data-task-id={task.id}
             draggable
+            role="button"
+            tabIndex={0}
+            aria-label={`Task: ${task.title}, priority ${task.priority}`}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onCardClick(task);
+                }
+            }}
             onDragStart={handleDragStart}
-            className="task-card bg-white p-4 mb-3 rounded-xl shadow-sm border border-gray-200 transition duration-150 hover:shadow-md cursor-grab active:cursor-grabbing"
+            className="task-card bg-white p-4 mb-3 rounded-xl shadow-sm border border-gray-200 transition duration-150 hover:shadow-md cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-purple-500"
             onClick={() => onCardClick(task)}
         >
             <div className="flex justify-between items-start mb-2">
@@ -110,10 +120,18 @@ const TaskCard: React.FC<TaskCardProps> = ({
                     </div>
 
                     {/* Comments Count */}
-                    <p className="flex items-center gap-1">
+                    <p className="flex items-center gap-1" title={`${commentsCount} comments`}>
                         <i className="fa fa-comment-dots"></i>
                         {commentsCount}
                     </p>
+
+                    {/* Attachments Count */}
+                    {(task.attachmentsCount ?? 0) > 0 && (
+                        <p className="flex items-center gap-1 text-purple-600" title={`${task.attachmentsCount} attachments`}>
+                            <i className="fa fa-paperclip"></i>
+                            {task.attachmentsCount}
+                        </p>
+                    )}
 
                 </div>
 

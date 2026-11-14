@@ -34,9 +34,9 @@ const userHasProjectAccess = async (projectId, req) => {
     if (!project) {
         return null;
     }
-    // Student → must be explicitly assigned.
+    // Student → must be explicitly assigned or project creator.
     if (req.user.role === 'STUDENT') {
-        return project.students.length > 0;
+        return project.students.length > 0 || project.createdById === req.user.id;
     }
     // Faculty → assigned faculty OR project creator.
     if (req.user.role === 'FACULTY') {
@@ -269,7 +269,7 @@ router.get('/faculty/reviews', authenticateUser, async (req, res) => {
 // PUT UPDATE EXISTING TASK
 // PUT /api/tasks/:id
 // ==========================================
-router.put('/:id', authenticateUser, async (req, res) => {
+const updateTaskHandler = async (req, res) => {
     const { id } = req.params;
     const { title, description, priority, dueDate, columnId, } = req.body;
     try {
@@ -394,7 +394,9 @@ router.put('/:id', authenticateUser, async (req, res) => {
             error,
         });
     }
-});
+};
+router.put('/:id', authenticateUser, updateTaskHandler);
+router.patch('/:id', authenticateUser, updateTaskHandler);
 // ==========================================
 // DELETE TASK
 // DELETE /api/tasks/:id

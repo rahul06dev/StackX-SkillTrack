@@ -1,28 +1,30 @@
 // src/App.tsx
 
-import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Dashboard from './pages/Dashboard';
 import ProjectsPage from './pages/ProjectsPage';
 // ⚠️ NEW IMPORT
 import ProjectBoardPage from './pages/ProjectBoardPage';
 import Register from './pages/Register';
+import Login from './pages/Login';
 import StudentDashboard from './pages/StudentDashboard';
 import FacultyDashboard from './pages/FacultyDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleRedirect from './components/RoleRedirect';
+import AdminUsersPage from './pages/AdminUsersPage';
 import AdminProjectsPage from './pages/AdminProjectsPage';
 import AdminSkillsPage from './pages/AdminSkillsPage';
 import AdminJobRolesPage from './pages/AdminJobRolesPage';
 import AdminTalentSearchPage from './pages/AdminTalentSearchPage';
+import PortfolioPage from './pages/PortfolioPage';
+import SettingsPage from './pages/SettingsPage';
 
 const App = () => {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<RoleRedirect />} />
-
+        <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
         <Route
@@ -48,6 +50,15 @@ const App = () => {
           element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminUsersPage />
             </ProtectedRoute>
           }
         />
@@ -105,6 +116,28 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/student/portfolio"
+          element={
+            <ProtectedRoute allowedRoles={['STUDENT']}>
+              <PortfolioPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Public Shareable Digital Skill Passport / Portfolio */}
+        <Route path="/portfolio/:studentId" element={<PortfolioPage isPublic />} />
+        <Route path="/share/portfolio/:studentId" element={<PortfolioPage isPublic />} />
 
         <Route path="*" element={<h1>404 - Page Not Found</h1>} />
       </Routes>

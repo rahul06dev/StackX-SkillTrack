@@ -22,7 +22,7 @@ interface CommentsTabContentProps {
 const CommentsTabContent: React.FC<CommentsTabContentProps> = ({ 
     initialComments, 
     onCommentAdded, 
-    currentUser 
+    currentUser: _currentUser 
 }) => {
     // State for the text input is local
     const [newComment, setNewComment] = useState('');

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config/api';
 import '../auth.css';
 
 const Register = () => {
@@ -7,8 +8,8 @@ const Register = () => {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [department, setDepartment] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('STUDENT');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -16,48 +17,51 @@ const Register = () => {
     e.preventDefault();
 
     setError('');
+
+    // Client-side validation: OWASP password complexity requirement
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      setError('Password must contain uppercase letters, lowercase letters, and at least one number.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await fetch(
-        'http://localhost:4300/api/auth/register',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name,
-            email,
-            password,
-            role,
-          }),
-        }
-      );
+      // Role is omitted from payload (OWASP A01: Broken Access Control Prevention)
+      // Public registration automatically creates a verified STUDENT profile.
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          department: department.trim() || undefined,
+          password,
+        }),
+      });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed.');
+        throw new Error(data.message || (data.errors && data.errors[0]) || 'Registration failed.');
       }
 
       // Automatically log in the newly registered user
       localStorage.setItem('user', JSON.stringify(data.user));
       localStorage.setItem('token', data.token);
 
-      // Redirect based on role
-      if (data.user.role === 'STUDENT') {
-        navigate('/student');
-      } else if (data.user.role === 'FACULTY') {
-        navigate('/faculty');
-      } else if (data.user.role === 'ADMIN') {
-        navigate('/admin');
-      }
-
-    } catch (error) {
+      // Redirect based on role (always student for public registration)
+      navigate('/student');
+    } catch (err) {
       setError(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : 'Something went wrong.'
       );
     } finally {
@@ -72,31 +76,63 @@ const Register = () => {
         <h1>Create Account</h1>
 
         <p className="auth-description">
-          Create your SkillTrack account to get started.
+          Create your student account to track projects and build your verified skill passport.
         </p>
 
         <form onSubmit={handleRegister} className="auth-form">
 
           <div className="auth-field">
-            <label>Name</label>
+            <label>Full Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
+              placeholder="e.g. Soham Hudge"
               required
             />
           </div>
 
           <div className="auth-field">
-            <label>Email</label>
+            <label>Institutional Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
+              placeholder="e.g. student@mitaoe.ac.in"
               required
             />
+          </div>
+
+          <div className="auth-field">
+            <label>Department / Branch</label>
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                fontSize: '14px',
+                background: '#ffffff',
+                color: '#1e293b',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+              }}
+            >
+              <option value="">Select Department / Branch...</option>
+              <option value="Computer Science and Engineering">Computer Science and Engineering</option>
+              <option value="Information Technology">Information Technology</option>
+              <option value="Artificial Intelligence and Data Science">Artificial Intelligence and Data Science</option>
+              <option value="Electronics and Communication Engineering">Electronics and Communication Engineering</option>
+              <option value="Electrical and Electronics Engineering">Electrical and Electronics Engineering</option>
+              <option value="Mechanical Engineering">Mechanical Engineering</option>
+              <option value="Civil Engineering">Civil Engineering</option>
+              <option value="Chemical Engineering">Chemical Engineering</option>
+              <option value="Aerospace Engineering">Aerospace Engineering</option>
+              <option value="General Studies / First Year">General Studies / First Year</option>
+            </select>
           </div>
 
           <div className="auth-field">
@@ -105,22 +141,12 @@ const Register = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a password"
+              placeholder="Min. 8 chars, uppercase, lowercase, number & symbol"
               required
             />
-          </div>
-
-          <div className="auth-field">
-            <label>Role</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              required
-            >
-              <option value="STUDENT">Student</option>
-              <option value="FACULTY">Faculty</option>
-              <option value="ADMIN">Admin</option>
-            </select>
+            <small className="text-xs text-gray-500 mt-1 block">
+              Must be at least 8 characters with uppercase, lowercase, numbers, and symbols.
+            </small>
           </div>
 
           {error && (

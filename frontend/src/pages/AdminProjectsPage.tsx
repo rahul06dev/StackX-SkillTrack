@@ -28,7 +28,7 @@ interface Project {
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'COMPLETED';
 
-const API_BASE_URL = 'http://localhost:4300';
+import { API_BASE_URL } from '../config/api';
 
 const AdminProjectsPage: React.FC = () => {
     const navigate = useNavigate();

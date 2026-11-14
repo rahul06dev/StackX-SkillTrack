@@ -4,6 +4,7 @@ import {
     authenticateUser,
     type AuthenticatedRequest,
 } from '../middleware/authMiddleware.js';
+import { logActivity } from '../services/activityService.js';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -71,9 +72,9 @@ const userHasProjectAccess = async (
         return null;
     }
 
-    // Student → must be explicitly assigned.
+    // Student → must be explicitly assigned or project creator.
     if (req.user.role === 'STUDENT') {
-        return project.students.length > 0;
+        return project.students.length > 0 || project.createdById === req.user.id;
     }
 
     // Faculty → assigned faculty OR project creator.
@@ -183,15 +184,21 @@ router.get(
 // ==========================================
 
 router.post(
-    '/task/:taskId',
+    ['/', '/task/:taskId'],
     authenticateUser,
     async (
         req: AuthenticatedRequest,
         res
     ) => {
-        const { taskId } = req.params;
+        const taskId = req.params.taskId || req.body.taskId;
 
         const { content } = req.body;
+
+        if (!taskId) {
+            return res.status(400).json({
+                message: 'taskId is required.',
+            });
+        }
 
         if (!content) {
             return res.status(400).json({
@@ -259,6 +266,16 @@ router.post(
                         content,
                     },
                 });
+
+            // Log activity
+            await logActivity({
+                projectId,
+                taskId,
+                userId: req.user!.id,
+                userName: user.name,
+                action: 'COMMENT_ADDED',
+                details: `Added comment: "${content.slice(0, 40)}${content.length > 40 ? '...' : ''}"`,
+            });
 
             // Format response for frontend.
             res.status(201).json({
