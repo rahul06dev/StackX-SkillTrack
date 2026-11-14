@@ -8,7 +8,9 @@ if (!JWT_SECRET) {
 // ==========================================
 // AUTHENTICATE USER
 // ==========================================
-export const authenticateUser = (req, res, next) => {
+// OWASP A01 & CWE-613: Verifies cryptographic JWT signature AND validates
+// against live PostgreSQL user state to immediately revoke deleted or demoted accounts.
+export const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader ||
@@ -19,9 +21,28 @@ export const authenticateUser = (req, res, next) => {
         }
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
+        const userId = decoded.userId || decoded.id;
+        if (!userId) {
+            return res.status(401).json({
+                message: 'Invalid token structure.',
+            });
+        }
+        // Live database check: immediately invalidates deleted or deactivated accounts
+        const liveUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                role: true,
+            },
+        });
+        if (!liveUser) {
+            return res.status(401).json({
+                message: 'Your account has been deleted or deactivated. Please sign in again.',
+            });
+        }
         req.user = {
-            id: decoded.userId || decoded.id,
-            role: decoded.role,
+            id: liveUser.id,
+            role: liveUser.role, // Always reflect live database role
         };
         next();
     }

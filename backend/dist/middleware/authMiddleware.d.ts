@@ -5,7 +5,7 @@ export interface AuthenticatedRequest extends Request {
         role: 'STUDENT' | 'FACULTY' | 'ADMIN';
     };
 }
-export declare const authenticateUser: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Response<any, Record<string, any>> | undefined;
+export declare const authenticateUser: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const authorizeRoles: (...allowedRoles: Array<"STUDENT" | "FACULTY" | "ADMIN">) => (req: AuthenticatedRequest, res: Response, next: NextFunction) => Response<any, Record<string, any>> | undefined;
 export declare const authorizeProjectAccess: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void | Response<any, Record<string, any>>>;
 //# sourceMappingURL=authMiddleware.d.ts.map

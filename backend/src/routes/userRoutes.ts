@@ -306,8 +306,8 @@ router.patch(
         return res.status(404).json({ message: 'User not found.' });
       }
 
-      // Prevent admin from demoting themselves if they are the current logged-in admin
-      if (req.user?.id === id && role !== 'ADMIN') {
+      // Prevent demoting an admin if they are the only remaining administrator account
+      if (existingUser.role === 'ADMIN' && role !== 'ADMIN') {
         const adminCount = await prisma.user.count({
           where: { role: 'ADMIN' },
         });
