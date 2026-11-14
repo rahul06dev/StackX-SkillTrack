@@ -25,6 +25,7 @@ interface KanbanColumnProps {
     completedColumnId?: string;
     inProgressColumnId?: string;
     targetTaskId?: string | null;
+    readOnly?: boolean;
     onTaskAutoOpened?: () => void;
     onColumnDelete: (columnId: string) => void;
     onTaskCreate: (columnId: string, newTask: Task) => void;
@@ -40,6 +41,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     completedColumnId,
     inProgressColumnId,
     targetTaskId,
+    readOnly = false,
     onTaskAutoOpened,
     onColumnDelete,
     onTaskCreate,
@@ -133,59 +135,63 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                     </span>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={() => onColumnDelete(columnId)}
-                    className="text-white/80 hover:text-white p-1 transition"
-                    title="Delete Column"
-                >
-                    <i className="fa fa-trash-alt text-sm"></i>
-                </button>
+                {!readOnly && (
+                    <button
+                        type="button"
+                        onClick={() => onColumnDelete(columnId)}
+                        className="text-white/80 hover:text-white p-1 transition"
+                        title="Delete Column"
+                    >
+                        <i className="fa fa-trash-alt text-sm"></i>
+                    </button>
+                )}
             </div>
 
             {/* Column Body & Add Task Button */}
             <div className="column-content flex-1 flex flex-col p-3">
-                {isAdding ? (
-                    <div className="task-input-form mb-3 p-3 bg-white rounded-xl shadow-sm border border-purple-200">
-                        <input
-                            type="text"
-                            className="task-input-field w-full px-3 py-2 mb-2 rounded-lg border border-gray-300 text-gray-800 text-sm focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Enter task title..."
-                            value={newTaskTitle}
-                            onChange={(e) => setNewTaskTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleAddTask();
-                                if (e.key === 'Escape') setIsAdding(false);
-                            }}
-                            autoFocus
-                        />
+                {!readOnly && (
+                    isAdding ? (
+                        <div className="task-input-form mb-3 p-3 bg-white rounded-xl shadow-sm border border-purple-200">
+                            <input
+                                type="text"
+                                className="task-input-field w-full px-3 py-2 mb-2 rounded-lg border border-gray-300 text-gray-800 text-sm focus:ring-purple-500 focus:border-purple-500"
+                                placeholder="Enter task title..."
+                                value={newTaskTitle}
+                                onChange={(e) => setNewTaskTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleAddTask();
+                                    if (e.key === 'Escape') setIsAdding(false);
+                                }}
+                                autoFocus
+                            />
 
-                        <div className="flex gap-2">
-                            <button
-                                type="button"
-                                className="add-task-submit-button flex-1 py-1.5 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition"
-                                onClick={handleAddTask}
-                            >
-                                Add Task
-                            </button>
-                            <button
-                                type="button"
-                                className="add-task-cancel-button py-1.5 px-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm transition"
-                                onClick={() => setIsAdding(false)}
-                            >
-                                Cancel
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    className="add-task-submit-button flex-1 py-1.5 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition"
+                                    onClick={handleAddTask}
+                                >
+                                    Add Task
+                                </button>
+                                <button
+                                    type="button"
+                                    className="add-task-cancel-button py-1.5 px-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm transition"
+                                    onClick={() => setIsAdding(false)}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                ) : (
-                    <button
-                        type="button"
-                        className="add-task-button w-full py-2 mb-3 bg-white hover:bg-gray-100 border border-dashed border-gray-300 text-gray-600 rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition"
-                        onClick={() => setIsAdding(true)}
-                    >
-                        <i className="fa fa-plus text-xs text-purple-600"></i>
-                        Add Task
-                    </button>
+                    ) : (
+                        <button
+                            type="button"
+                            className="add-task-button w-full py-2 mb-3 bg-white hover:bg-gray-100 border border-dashed border-gray-300 text-gray-600 rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition"
+                            onClick={() => setIsAdding(true)}
+                        >
+                            <i className="fa fa-plus text-xs text-purple-600"></i>
+                            Add Task
+                        </button>
+                    )
                 )}
 
                 {/* Droppable Task Container */}
@@ -205,6 +211,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                                     key={task.id}
                                     draggableId={task.id}
                                     index={index}
+                                    isDragDisabled={readOnly}
                                 >
                                     {(dragProvided, dragSnapshot) => (
                                         <div

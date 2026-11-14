@@ -17,6 +17,7 @@ interface ProjectSkill {
 
 interface ProjectSkillsProps {
   projectId: string;
+  canManageSkills?: boolean;
 }
 
 interface StoredUser {
@@ -28,6 +29,7 @@ interface StoredUser {
 
 const ProjectSkills: React.FC<ProjectSkillsProps> = ({
   projectId,
+  canManageSkills: canManageSkillsProp,
 }) => {
   const [projectSkills, setProjectSkills] = useState<
     ProjectSkill[]
@@ -42,6 +44,7 @@ const ProjectSkills: React.FC<ProjectSkillsProps> = ({
 
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const token = localStorage.getItem('token');
@@ -59,8 +62,13 @@ const ProjectSkills: React.FC<ProjectSkillsProps> = ({
   }
 
   const canManageSkills =
-    currentUser?.role === 'ADMIN' ||
-    currentUser?.role === 'FACULTY';
+    canManageSkillsProp !== undefined
+      ? canManageSkillsProp
+      : Boolean(
+          currentUser?.role === 'ADMIN' ||
+          currentUser?.role === 'FACULTY' ||
+          currentUser?.role === 'STUDENT'
+        );
 
   // ==========================================
   // FETCH PROJECT SKILLS
@@ -103,8 +111,6 @@ const ProjectSkills: React.FC<ProjectSkillsProps> = ({
   // ==========================================
 
   const fetchAvailableSkills = async () => {
-    // Students don't need the catalogue because
-    // they cannot add project skills.
     if (!canManageSkills) {
       return;
     }
@@ -162,7 +168,7 @@ const ProjectSkills: React.FC<ProjectSkillsProps> = ({
 
   useEffect(() => {
     loadSkills();
-  }, [projectId]);
+  }, [projectId, canManageSkills]);
 
   // ==========================================
   // ADD SKILL
@@ -216,6 +222,59 @@ const ProjectSkills: React.FC<ProjectSkillsProps> = ({
       );
     } finally {
       setAdding(false);
+    }
+  };
+
+  // ==========================================
+  // REMOVE SKILL
+  // ==========================================
+
+  const handleRemoveSkill = async (skillId: string) => {
+    if (!canManageSkills) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        'Are you sure you want to remove this skill from the project?'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setRemovingId(skillId);
+      setError('');
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/project-skills/${projectId}/${skillId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(
+          data.message || 'Failed to remove skill.'
+        );
+      }
+
+      setProjectSkills((current) =>
+        current.filter((ps) => ps.skill.id !== skillId)
+      );
+    } catch (err) {
+      console.error('Error removing skill:', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to remove skill.'
+      );
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -397,6 +456,44 @@ const ProjectSkills: React.FC<ProjectSkillsProps> = ({
                     </p>
                   )}
                 </div>
+
+                {canManageSkills && (
+                  <button
+                    type="button"
+                    className="project-skill-remove-btn"
+                    onClick={() => handleRemoveSkill(projectSkill.skill.id)}
+                    disabled={removingId === projectSkill.skill.id}
+                    title="Remove skill from project"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      marginLeft: 'auto',
+                      alignSelf: 'flex-start',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = '#ef4444';
+                      e.currentTarget.style.backgroundColor = '#fee2e2';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = '#94a3b8';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <i
+                      className={`fa ${
+                        removingId === projectSkill.skill.id
+                          ? 'fa-spinner fa-spin'
+                          : 'fa-times'
+                      }`}
+                    ></i>
+                  </button>
+                )}
               </div>
             )
           )}

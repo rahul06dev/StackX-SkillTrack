@@ -73,7 +73,11 @@ const ProjectBoardPage = () => {
   const isOwner = user?.id ? project.createdById === user.id : false;
   const isAdmin = user?.role === 'ADMIN';
   const isFacultySupervisor = project.faculty.some(f => f.id === user?.id);
+  const isStudentMember = user?.role === 'STUDENT' && (
+    isOwner || project.students.some(s => s.id === user?.id)
+  );
   const canManageTeam = !project.isPendingInvitation && (isOwner || isAdmin || isFacultySupervisor);
+  const canManageSkills = !project.isPendingInvitation && (isOwner || isAdmin || isFacultySupervisor || isStudentMember);
 
   const [columns, setColumns] = useState<Column[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1081,42 +1085,43 @@ const ProjectBoardPage = () => {
 
         </div>
 
-        {/* Project Skills & Kanban Board (Visible only after invitation is accepted) */}
-        {!project.isPendingInvitation && (
-          <>
-            {/* Project Skills */}
-            <ProjectSkills projectId={projectId!} />
+        {/* Project Skills */}
+        <ProjectSkills
+          projectId={projectId!}
+          canManageSkills={canManageSkills}
+        />
 
-            {/* Kanban Board Columns with Drag and Drop */}
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <div className="kanban-board-grid">
-                {columns.length > 0 ? (
-                  columns.map((column) => (
-                    <KanbanColumn
-                      key={column.id}
-                      columnId={column.id}
-                      title={column.title}
-                      colorClass={column.colorClass}
-                      tasks={column.tasks || []}
-                      onColumnDelete={handleColumnDelete}
-                      onTaskCreate={handleTaskCreate}
-                      onTaskSave={handleTaskSave}
-                      onTaskDelete={handleTaskDelete}
-                      completedColumnId={completedColumnId}
-                      inProgressColumnId={inProgressColumnId}
-                      targetTaskId={targetTaskId}
-                      onTaskAutoOpened={handleTaskAutoOpened}
-                    />
-                  ))
-                ) : (
-                  <p className="text-gray-500">
-                    No columns found for this project. Add one now!
-                  </p>
-                )}
-              </div>
-            </DragDropContext>
-          </>
-        )}
+        {/* Kanban Board Columns with Drag and Drop (Visible to all team members) */}
+        <DragDropContext
+          onDragEnd={project.isPendingInvitation ? () => {} : handleDragEnd}
+        >
+          <div className="kanban-board-grid">
+            {columns.length > 0 ? (
+              columns.map((column) => (
+                <KanbanColumn
+                  key={column.id}
+                  columnId={column.id}
+                  title={column.title}
+                  colorClass={column.colorClass}
+                  tasks={column.tasks || []}
+                  onColumnDelete={handleColumnDelete}
+                  onTaskCreate={handleTaskCreate}
+                  onTaskSave={handleTaskSave}
+                  onTaskDelete={handleTaskDelete}
+                  completedColumnId={completedColumnId}
+                  inProgressColumnId={inProgressColumnId}
+                  targetTaskId={targetTaskId}
+                  onTaskAutoOpened={handleTaskAutoOpened}
+                  readOnly={Boolean(project.isPendingInvitation)}
+                />
+              ))
+            ) : (
+              <p className="text-gray-500">
+                No columns found for this project. Add one now!
+              </p>
+            )}
+          </div>
+        </DragDropContext>
       </div>
 
       {/* Add Column Modal */}
