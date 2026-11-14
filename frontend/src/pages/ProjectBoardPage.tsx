@@ -73,7 +73,7 @@ const ProjectBoardPage = () => {
   const isOwner = user?.id ? project.createdById === user.id : false;
   const isAdmin = user?.role === 'ADMIN';
   const isFacultySupervisor = project.faculty.some(f => f.id === user?.id);
-  const canManageTeam = isOwner || isAdmin || isFacultySupervisor;
+  const canManageTeam = !project.isPendingInvitation && (isOwner || isAdmin || isFacultySupervisor);
 
   const [columns, setColumns] = useState<Column[]>([]);
   const [loading, setLoading] = useState(true);
@@ -937,25 +937,27 @@ const ProjectBoardPage = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="activity-button flex items-center gap-2 px-5 py-3 rounded-xl font-semibold bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 transition shadow-sm"
-                onClick={() => setIsActivityModalOpen(true)}
-              >
-                <i className="fa fa-history text-purple-600"></i>
-                Activity History
-              </button>
+            {!project.isPendingInvitation && (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  className="activity-button flex items-center gap-2 px-5 py-3 rounded-xl font-semibold bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 transition shadow-sm"
+                  onClick={() => setIsActivityModalOpen(true)}
+                >
+                  <i className="fa fa-history text-purple-600"></i>
+                  Activity History
+                </button>
 
-              <button
-                type="button"
-                className="add-column-button flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition"
-                onClick={handleOpenModal}
-              >
-                <i className="fa fa-plus"></i>
-                Add Column
-              </button>
-            </div>
+                <button
+                  type="button"
+                  className="add-column-button flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition"
+                  onClick={handleOpenModal}
+                >
+                  <i className="fa fa-plus"></i>
+                  Add Column
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Project Team */}
@@ -1079,37 +1081,42 @@ const ProjectBoardPage = () => {
 
         </div>
 
-        {/* Project Skills */}
-        <ProjectSkills projectId={projectId!} />
+        {/* Project Skills & Kanban Board (Visible only after invitation is accepted) */}
+        {!project.isPendingInvitation && (
+          <>
+            {/* Project Skills */}
+            <ProjectSkills projectId={projectId!} />
 
-        {/* Kanban Board Columns with Drag and Drop */}
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="kanban-board-grid">
-            {columns.length > 0 ? (
-              columns.map((column) => (
-                <KanbanColumn
-                  key={column.id}
-                  columnId={column.id}
-                  title={column.title}
-                  colorClass={column.colorClass}
-                  tasks={column.tasks || []}
-                  onColumnDelete={handleColumnDelete}
-                  onTaskCreate={handleTaskCreate}
-                  onTaskSave={handleTaskSave}
-                  onTaskDelete={handleTaskDelete}
-                  completedColumnId={completedColumnId}
-                  inProgressColumnId={inProgressColumnId}
-                  targetTaskId={targetTaskId}
-                  onTaskAutoOpened={handleTaskAutoOpened}
-                />
-              ))
-            ) : (
-              <p className="text-gray-500">
-                No columns found for this project. Add one now!
-              </p>
-            )}
-          </div>
-        </DragDropContext>
+            {/* Kanban Board Columns with Drag and Drop */}
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <div className="kanban-board-grid">
+                {columns.length > 0 ? (
+                  columns.map((column) => (
+                    <KanbanColumn
+                      key={column.id}
+                      columnId={column.id}
+                      title={column.title}
+                      colorClass={column.colorClass}
+                      tasks={column.tasks || []}
+                      onColumnDelete={handleColumnDelete}
+                      onTaskCreate={handleTaskCreate}
+                      onTaskSave={handleTaskSave}
+                      onTaskDelete={handleTaskDelete}
+                      completedColumnId={completedColumnId}
+                      inProgressColumnId={inProgressColumnId}
+                      targetTaskId={targetTaskId}
+                      onTaskAutoOpened={handleTaskAutoOpened}
+                    />
+                  ))
+                ) : (
+                  <p className="text-gray-500">
+                    No columns found for this project. Add one now!
+                  </p>
+                )}
+              </div>
+            </DragDropContext>
+          </>
+        )}
       </div>
 
       {/* Add Column Modal */}
