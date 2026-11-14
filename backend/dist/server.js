@@ -98,12 +98,72 @@ app.use((err, _req, res, _next) => {
         message: safeMessage,
     });
 });
-// --- Server Startup with Verified Database Connection ---
+// --- Server Startup with Verified Database Connection & Auto-Migration ---
 async function startServer() {
     try {
         // Actually verify PostgreSQL connection on startup
         await prisma.$connect();
         console.log('✅ PostgreSQL Database connection verified successfully!');
+        // Ensure ProjectFaculty table and constraints exist in database (self-healing migration)
+        try {
+            await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "ProjectFaculty" (
+          "id" TEXT NOT NULL,
+          "projectId" TEXT NOT NULL,
+          "facultyId" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "ProjectFaculty_pkey" PRIMARY KEY ("id")
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "ProjectFaculty_projectId_facultyId_key" ON "ProjectFaculty"("projectId", "facultyId");
+        CREATE INDEX IF NOT EXISTS "ProjectFaculty_projectId_idx" ON "ProjectFaculty"("projectId");
+        CREATE INDEX IF NOT EXISTS "ProjectFaculty_facultyId_idx" ON "ProjectFaculty"("facultyId");
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'ProjectFaculty_projectId_fkey'
+          ) THEN
+            ALTER TABLE "ProjectFaculty" ADD CONSTRAINT "ProjectFaculty_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+          END IF;
+        END $$;
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'ProjectFaculty_facultyId_fkey'
+          ) THEN
+            ALTER TABLE "ProjectFaculty" ADD CONSTRAINT "ProjectFaculty_facultyId_fkey" FOREIGN KEY ("facultyId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+          END IF;
+        END $$;
+      `);
+            // Backfill any existing projects with assignedFacultyId into ProjectFaculty
+            const existingFacultyProjects = await prisma.project.findMany({
+                where: {
+                    assignedFacultyId: { not: null },
+                },
+                select: {
+                    id: true,
+                    assignedFacultyId: true,
+                },
+            });
+            for (const proj of existingFacultyProjects) {
+                if (proj.assignedFacultyId) {
+                    await prisma.projectFaculty.upsert({
+                        where: {
+                            projectId_facultyId: {
+                                projectId: proj.id,
+                                facultyId: proj.assignedFacultyId,
+                            },
+                        },
+                        update: {},
+                        create: {
+                            projectId: proj.id,
+                            facultyId: proj.assignedFacultyId,
+                        },
+                    });
+                }
+            }
+            console.log('✅ ProjectFaculty schema and associations verified successfully!');
+        }
+        catch (dbInitErr) {
+            console.warn('⚠️ Notice during ProjectFaculty schema verification:', dbInitErr);
+        }
         app.listen(PORT, () => {
             console.log(`🚀 StackX SkillTrack API running on http://localhost:${PORT}`);
             console.log(`🔒 Allowed CORS origins: ${allowedOrigins.join(', ')}`);
