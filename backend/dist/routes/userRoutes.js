@@ -199,7 +199,6 @@ router.patch('/profile', authenticateUser, async (req, res) => {
                 ...(typeof name === 'string' && name.trim().length >= 2 ? { name: sanitizeString(name.trim()) } : {}),
                 headline: headline !== undefined ? (typeof headline === 'string' ? sanitizeString(headline) : null) : undefined,
                 bio: bio !== undefined ? (typeof bio === 'string' ? sanitizeString(bio) : null) : undefined,
-                department: department !== undefined ? (typeof department === 'string' ? sanitizeString(department) : null) : undefined,
                 studentIdNo: studentIdNo !== undefined ? (typeof studentIdNo === 'string' ? sanitizeString(studentIdNo) : null) : undefined,
                 graduationYear: graduationYear !== undefined ? (typeof graduationYear === 'string' ? sanitizeString(graduationYear) : null) : undefined,
                 ...(cleanGithub !== undefined ? { githubUrl: cleanGithub } : {}),

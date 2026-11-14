@@ -172,7 +172,6 @@ const SettingsPage: React.FC = () => {
           name: name.trim(),
           headline: headline.trim() || null,
           bio: bio.trim() || null,
-          department: department.trim() || null,
           studentIdNo: studentIdNo.trim() || null,
           graduationYear: graduationYear.trim() || null,
           githubUrl: githubUrl.trim() || null,
@@ -570,25 +569,45 @@ const SettingsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Department */}
+                    {/* Department (Read-Only Institutional Record) */}
                     <div>
                       <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                        Department / Branch
+                        Department / Branch <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 400 }}>● Institutional Record</span>
                       </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Computer Science and Engineering"
-                        value={department}
-                        onChange={(e) => setDepartment(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '10px 14px',
-                          borderRadius: '8px',
-                          border: '1px solid #cbd5e1',
-                          fontSize: '14px',
-                          boxSizing: 'border-box',
-                        }}
-                      />
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          value={department || 'Not Assigned'}
+                          disabled
+                          readOnly
+                          style={{
+                            width: '100%',
+                            padding: '10px 36px 10px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            background: '#f8fafc',
+                            color: '#64748b',
+                            fontSize: '14px',
+                            boxSizing: 'border-box',
+                            cursor: 'not-allowed',
+                          }}
+                        />
+                        <i
+                          className="fa fa-lock"
+                          style={{
+                            position: 'absolute',
+                            right: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#94a3b8',
+                            fontSize: '13px',
+                          }}
+                          title="Department cannot be changed after registration"
+                        ></i>
+                      </div>
+                      <small style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                        Assigned during registration. Contact an institution administrator to request a transfer.
+                      </small>
                     </div>
                   </div>
                 </div>

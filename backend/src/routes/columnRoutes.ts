@@ -50,15 +50,39 @@ const userHasProjectAccess = async (
 
     // Student → must be explicitly assigned or project creator.
     if (req.user.role === 'STUDENT') {
-        return project.students.length > 0 || project.createdById === req.user.id;
+        if (project.students.length > 0 || project.createdById === req.user.id) {
+            return true;
+        }
+        // Allow invited students with a pending invitation to preview the board
+        const pendingInvite = await prisma.projectInvitation.findFirst({
+            where: {
+                projectId,
+                recipientId: req.user.id,
+                status: 'PENDING',
+            },
+            select: { id: true },
+        });
+        return Boolean(pendingInvite);
     }
 
     // Faculty → assigned faculty OR project creator.
     if (req.user.role === 'FACULTY') {
-        return (
+        if (
             project.assignedFacultyId === req.user.id ||
             project.createdById === req.user.id
-        );
+        ) {
+            return true;
+        }
+        // Allow invited faculty with a pending supervision request to preview the board
+        const pendingInvite = await prisma.projectInvitation.findFirst({
+            where: {
+                projectId,
+                recipientId: req.user.id,
+                status: 'PENDING',
+            },
+            select: { id: true },
+        });
+        return Boolean(pendingInvite);
     }
 
     return false;

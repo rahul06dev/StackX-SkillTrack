@@ -192,7 +192,6 @@ const PortfolioPage = ({ isPublic = false }: PortfolioPageProps) => {
         body: JSON.stringify({
           headline,
           bio,
-          department,
           studentIdNo,
           graduationYear,
           githubUrl,
@@ -286,15 +285,37 @@ const PortfolioPage = ({ isPublic = false }: PortfolioPageProps) => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="claim-skill-field">
-                    <label htmlFor="profile-dept">Department / Program</label>
-                    <input
-                      id="profile-dept"
-                      type="text"
-                      className="faculty-feedback-input"
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      placeholder="e.g. B.Tech Computer Science & Engg."
-                    />
+                    <label htmlFor="profile-dept">
+                      Department / Program <span style={{ fontSize: '11px', color: '#64748b' }}>● Locked</span>
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        id="profile-dept"
+                        type="text"
+                        className="faculty-feedback-input"
+                        value={department || 'Not Assigned'}
+                        disabled
+                        readOnly
+                        style={{
+                          background: '#f8fafc',
+                          color: '#64748b',
+                          cursor: 'not-allowed',
+                          paddingRight: '36px',
+                        }}
+                      />
+                      <i
+                        className="fa fa-lock"
+                        style={{
+                          position: 'absolute',
+                          right: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#94a3b8',
+                          fontSize: '13px',
+                        }}
+                        title="Department cannot be edited after registration"
+                      ></i>
+                    </div>
                   </div>
                   <div className="claim-skill-field">
                     <label htmlFor="profile-roll">Student ID / PRN</label>

@@ -484,10 +484,24 @@ router.get('/:id', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN
         const isAssignedStudent = project.students.some((assignment) => assignment.studentId === userId);
         const isAssignedFaculty = project.assignedFacultyId === userId;
         const isCreator = project.createdById === userId;
+        // Check whether user has an active pending invitation to this project
+        const pendingInvitation = await prisma.projectInvitation.findFirst({
+            where: {
+                projectId,
+                recipientId: userId,
+                status: 'PENDING',
+            },
+            include: {
+                invitedBy: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
+        });
         if (!isAdmin &&
             !isAssignedStudent &&
             !isAssignedFaculty &&
-            !isCreator) {
+            !isCreator &&
+            !pendingInvitation) {
             return res.status(403).json({
                 message: 'You do not have access to this project.',
             });
@@ -507,6 +521,15 @@ router.get('/:id', authenticateUser, authorizeRoles('STUDENT', 'FACULTY', 'ADMIN
             students,
             faculty,
             admins,
+            isPendingInvitation: Boolean(pendingInvitation),
+            pendingInvitation: pendingInvitation
+                ? {
+                    id: pendingInvitation.id,
+                    type: pendingInvitation.type,
+                    invitedBy: pendingInvitation.invitedBy,
+                    createdAt: pendingInvitation.createdAt,
+                }
+                : null,
         });
     }
     catch (error) {

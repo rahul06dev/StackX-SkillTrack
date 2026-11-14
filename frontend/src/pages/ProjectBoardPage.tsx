@@ -23,6 +23,17 @@ interface ProjectDetails {
   students: ProjectPerson[];
   faculty: ProjectPerson[];
   admins: ProjectPerson[];
+  isPendingInvitation?: boolean;
+  pendingInvitation?: {
+    id: string;
+    type: string;
+    invitedBy?: {
+      id: string;
+      name: string;
+      email: string;
+    };
+    createdAt: string;
+  } | null;
 }
 
 interface Column {
@@ -67,6 +78,8 @@ const ProjectBoardPage = () => {
   const [columns, setColumns] = useState<Column[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [invitationActionLoading, setInvitationActionLoading] = useState(false);
+  const [invitationFeedback, setInvitationFeedback] = useState<string | null>(null);
 
   const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -314,6 +327,8 @@ const ProjectBoardPage = () => {
           students: projectData.students || [],
           faculty: projectData.faculty || [],
           admins: projectData.admins || [],
+          isPendingInvitation: (projectData as any).isPendingInvitation,
+          pendingInvitation: (projectData as any).pendingInvitation,
         });
 
         // 2. Fetch Columns
@@ -360,6 +375,73 @@ const ProjectBoardPage = () => {
 
     fetchData();
   }, [parsedProjectId]);
+
+  // --- INVITATION RESPONSE HANDLERS ---
+  const handleAcceptInvitation = async () => {
+    if (!project.pendingInvitation?.id) return;
+    setInvitationActionLoading(true);
+    setInvitationFeedback(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/invitations/${project.pendingInvitation.id}/accept`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to accept invitation.');
+      }
+
+      setInvitationFeedback('Invitation accepted! Welcome to the project team.');
+      // Update local project state to remove pending invitation flag
+      setProject((prev) => ({
+        ...prev,
+        isPendingInvitation: false,
+        pendingInvitation: null,
+      }));
+      // Reload page after short delay to refresh full member list
+      setTimeout(() => {
+        window.location.reload();
+      }, 1200);
+    } catch (err: any) {
+      alert(err.message || 'Could not accept invitation.');
+    } finally {
+      setInvitationActionLoading(false);
+    }
+  };
+
+  const handleDeclineInvitation = async () => {
+    if (!project.pendingInvitation?.id) return;
+    if (!window.confirm('Are you sure you want to decline this invitation?')) return;
+    setInvitationActionLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/invitations/${project.pendingInvitation.id}/decline`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to decline invitation.');
+      }
+
+      const userData = localStorage.getItem('user');
+      const parsedUser = userData ? JSON.parse(userData) : null;
+      navigate(parsedUser?.role === 'FACULTY' ? '/faculty' : '/student');
+    } catch (err: any) {
+      alert(err.message || 'Could not decline invitation.');
+    } finally {
+      setInvitationActionLoading(false);
+    }
+  };
 
   // --- MODAL HANDLERS ---
   const handleOpenModal = () => {
@@ -647,13 +729,94 @@ const ProjectBoardPage = () => {
 
   // --- ERROR STATE ---
   if (error) {
+    const userData = localStorage.getItem('user');
+    const parsedUser = userData ? JSON.parse(userData) : null;
+    const isFaculty = parsedUser?.role === 'FACULTY';
+
     return (
       <div className="flex flex-col md:flex-row min-h-screen">
         <Sidebar activeTab="projects" />
 
         <div className="flex-1 p-4 sm:p-6 lg:p-10 dashboard-page-bg">
-          <h2>Unable to load project board</h2>
-          <p>{error}</p>
+          <div
+            style={{
+              maxWidth: '560px',
+              margin: '60px auto',
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '36px',
+              textAlign: 'center',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.05)',
+            }}
+          >
+            <div
+              style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                background: '#fee2e2',
+                color: '#dc2626',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '22px',
+                marginBottom: '16px',
+              }}
+            >
+              <i className="fa fa-lock"></i>
+            </div>
+
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+              Project Board Access
+            </h2>
+
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px', lineHeight: 1.5 }}>
+              {error}
+              <br />
+              If you received an invitation to collaborate on this project, please review and accept it from your dashboard first.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => navigate(isFaculty ? '/faculty' : '/student')}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#4f46e5',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <i className="fa fa-envelope-open-text"></i>
+                <span>Go to Dashboard to Review Invitations</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/projects')}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#475569',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Back to Projects
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -667,6 +830,101 @@ const ProjectBoardPage = () => {
 
         {/* Header Section */}
         <div className="mb-8">
+
+          {/* Pending Team / Supervision Invitation Banner */}
+          {project.isPendingInvitation && project.pendingInvitation && (
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+                border: '1.5px solid #a5b4fc',
+                borderRadius: '14px',
+                padding: '20px 24px',
+                marginBottom: '28px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '16px',
+                boxShadow: '0 4px 14px rgba(79, 70, 229, 0.1)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    background: '#4f46e5',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '20px',
+                    flexShrink: 0,
+                  }}
+                >
+                  <i className="fa fa-envelope-open-text"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#1e1b4b' }}>
+                    Project Team Invitation Pending
+                  </h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#4338ca' }}>
+                    {project.pendingInvitation.invitedBy?.name || 'A teammate'} invited you to join the team for{' '}
+                    <strong>{project.title}</strong>. Accept the invitation to contribute to tasks.
+                  </p>
+                  {invitationFeedback && (
+                    <p style={{ margin: '6px 0 0 0', fontSize: '13px', fontWeight: 600, color: '#059669' }}>
+                      <i className="fa fa-check-circle" style={{ marginRight: '6px' }}></i>
+                      {invitationFeedback}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  type="button"
+                  disabled={invitationActionLoading}
+                  onClick={handleAcceptInvitation}
+                  style={{
+                    padding: '11px 22px',
+                    borderRadius: '9px',
+                    border: 'none',
+                    background: '#4f46e5',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 6px rgba(79, 70, 229, 0.3)',
+                  }}
+                >
+                  <i className={`fa ${invitationActionLoading ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
+                  <span>{invitationActionLoading ? 'Joining Team...' : 'Accept & Join Team'}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={invitationActionLoading}
+                  onClick={handleDeclineInvitation}
+                  style={{
+                    padding: '11px 18px',
+                    borderRadius: '9px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#64748b',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Decline
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-between items-start">
             <div>
