@@ -804,6 +804,84 @@ router.patch(
 );
 
 // ─────────────────────────────────────────────────────────────────
+// DELETE /api/student-skills/:id
+// Student cancels/deletes a pending skill claim before it is reviewed,
+// or Admin deletes a claim.
+// ─────────────────────────────────────────────────────────────────
+router.delete(
+  '/:id',
+  authenticateUser,
+  authorizeRoles('STUDENT', 'ADMIN'),
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.id;
+      const userRole = req.user?.role;
+      const studentSkillId = req.params.id;
+
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required.' });
+      }
+
+      const existing = await prisma.studentSkill.findUnique({
+        where: { id: studentSkillId },
+        include: {
+          skill: { select: { id: true, name: true } },
+          student: { select: { id: true, name: true } },
+          evidence: { select: { projectId: true } },
+        },
+      });
+
+      if (!existing) {
+        return res.status(404).json({ message: 'Skill claim not found.' });
+      }
+
+      // If student, verify ownership
+      if (userRole === 'STUDENT' && existing.studentId !== userId) {
+        return res.status(403).json({
+          message: 'You can only delete your own skill claims.',
+        });
+      }
+
+      // Only allow deleting claims with PENDING review status (unless ADMIN)
+      if (userRole === 'STUDENT' && existing.verification !== 'PENDING') {
+        return res.status(400).json({
+          message: 'Only skill claims with PENDING review status can be deleted.',
+        });
+      }
+
+      // Atomic deletion of evidence links and studentSkill claim
+      await prisma.$transaction([
+        prisma.studentSkillEvidence.deleteMany({
+          where: { studentSkillId },
+        }),
+        prisma.studentSkill.delete({
+          where: { id: studentSkillId },
+        }),
+      ]);
+
+      for (const ev of existing.evidence) {
+        await logActivity({
+          projectId: ev.projectId,
+          userId,
+          userName: existing.student.name || 'Student',
+          action: 'SKILL_CLAIM_CANCELLED',
+          details: `Cancelled pending claim for "${existing.skill.name}"`,
+        });
+      }
+
+      return res.json({
+        message: 'Pending skill claim deleted successfully.',
+      });
+    } catch (error) {
+      console.error('Error deleting skill claim:', error);
+      return res.status(500).json({
+        message: 'Failed to delete skill claim.',
+      });
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────
 // GET /api/student-skills/admin/overview
 // Admin university-wide skill verification analytics.
 // ─────────────────────────────────────────────────────────────────

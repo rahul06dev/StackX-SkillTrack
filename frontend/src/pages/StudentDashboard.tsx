@@ -158,6 +158,7 @@ const StudentDashboard = () => {
   const [claimMessage, setClaimMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [loadingProjectSkills, setLoadingProjectSkills] = useState(false);
   const [projectSkillsCache, setProjectSkillsCache] = useState<Record<string, ProjectSkillInfo[]>>({});
+  const [deletingClaimId, setDeletingClaimId] = useState<string | null>(null);
 
   const fetchProjects = async () => {
     try {
@@ -515,6 +516,41 @@ const StudentDashboard = () => {
       });
     } finally {
       setClaimLoading(false);
+    }
+  };
+
+  const handleDeleteClaim = async (claimId: string, skillName: string) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to cancel and delete your pending claim for "${skillName}"?`
+      )
+    ) {
+      return;
+    }
+
+    setDeletingClaimId(claimId);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE}/api/student-skills/${claimId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const resData = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(resData.message || 'Failed to delete pending claim.');
+      }
+
+      setSubmittedSkills((prev) => prev.filter((item) => item.id !== claimId));
+      setPendingSkills((prev) => prev.filter((item) => item.id !== claimId));
+    } catch (err) {
+      console.error('Error deleting skill claim:', err);
+      alert(err instanceof Error ? err.message : 'Failed to delete pending claim.');
+    } finally {
+      setDeletingClaimId(null);
     }
   };
 
@@ -1264,6 +1300,81 @@ const StudentDashboard = () => {
                             }
                           >
                             <i className="fa fa-redo"></i> Resubmit with New Evidence
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Pending review status & delete option */}
+                      {claim.verification === 'PENDING' && (
+                        <div
+                          style={{
+                            marginTop: '12px',
+                            padding: '10px 12px',
+                            background: '#fffbeb',
+                            border: '1px solid #fef3c7',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '8px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '0.78rem',
+                              color: '#92400e',
+                              fontWeight: 600,
+                            }}
+                          >
+                            <i className="fa fa-clock"></i>
+                            <span>Awaiting Faculty Review</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteClaim(claim.id, claim.name)}
+                            disabled={deletingClaimId === claim.id}
+                            title="Delete this pending claim"
+                            style={{
+                              background: '#ffffff',
+                              border: '1px solid #fecdd3',
+                              color: '#e11d48',
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              transition: 'all 0.15s ease',
+                              boxShadow: '0 1px 2px rgba(225, 29, 72, 0.05)',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#fff1f2';
+                              e.currentTarget.style.borderColor = '#fda4af';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#ffffff';
+                              e.currentTarget.style.borderColor = '#fecdd3';
+                            }}
+                          >
+                            <i
+                              className={`fa ${
+                                deletingClaimId === claim.id
+                                  ? 'fa-spinner fa-spin'
+                                  : 'fa-trash-alt'
+                              }`}
+                            ></i>
+                            <span>
+                              {deletingClaimId === claim.id
+                                ? 'Deleting...'
+                                : 'Delete Claim'}
+                            </span>
                           </button>
                         </div>
                       )}
