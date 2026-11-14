@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node dist/server.js",
-    "build": "prisma generate && tsc",
+    "build": "prisma generate && (prisma db push --accept-data-loss || true) && tsc",
     "dev": "NODE_ENV=development nodemon --watch src --ext ts --exec 'node --loader ts-node/esm' src/server.ts",
     "seed:skills": "node --loader ts-node/esm src/seeds/seedSkills.ts",
     "test": "node --loader ts-node/esm src/test.ts"

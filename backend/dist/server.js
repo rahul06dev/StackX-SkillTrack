@@ -113,10 +113,18 @@ async function startServer() {
           "facultyId" TEXT NOT NULL,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT "ProjectFaculty_pkey" PRIMARY KEY ("id")
-        );
-        CREATE UNIQUE INDEX IF NOT EXISTS "ProjectFaculty_projectId_facultyId_key" ON "ProjectFaculty"("projectId", "facultyId");
-        CREATE INDEX IF NOT EXISTS "ProjectFaculty_projectId_idx" ON "ProjectFaculty"("projectId");
-        CREATE INDEX IF NOT EXISTS "ProjectFaculty_facultyId_idx" ON "ProjectFaculty"("facultyId");
+        )
+      `);
+            await prisma.$executeRawUnsafe(`
+        CREATE UNIQUE INDEX IF NOT EXISTS "ProjectFaculty_projectId_facultyId_key" ON "ProjectFaculty"("projectId", "facultyId")
+      `);
+            await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "ProjectFaculty_projectId_idx" ON "ProjectFaculty"("projectId")
+      `);
+            await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "ProjectFaculty_facultyId_idx" ON "ProjectFaculty"("facultyId")
+      `);
+            await prisma.$executeRawUnsafe(`
         DO $$ BEGIN
           IF NOT EXISTS (
             SELECT 1 FROM pg_constraint WHERE conname = 'ProjectFaculty_projectId_fkey'
@@ -124,6 +132,8 @@ async function startServer() {
             ALTER TABLE "ProjectFaculty" ADD CONSTRAINT "ProjectFaculty_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
           END IF;
         END $$;
+      `);
+            await prisma.$executeRawUnsafe(`
         DO $$ BEGIN
           IF NOT EXISTS (
             SELECT 1 FROM pg_constraint WHERE conname = 'ProjectFaculty_facultyId_fkey'
