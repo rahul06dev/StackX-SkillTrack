@@ -40,22 +40,33 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // --- Dynamic CORS Configuration ---
-// Configured from CLIENT_ORIGIN environment variable, defaulting to frontend port 5173.
-const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
+// Configured from CLIENT_ORIGIN environment variable, defaulting to frontend dev and prod origins.
+const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173,http://localhost:5174,http://localhost:5175,https://stack-x-skill-track.vercel.app')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // In development or when origin matches whitelist, allow request
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn(`[SECURITY] Blocked CORS request from unauthorized origin: ${origin}`);
-        callback(new Error(`Not allowed by CORS: Origin ${origin} is not authorized.`));
+      // In development or when origin matches whitelist / any localhost port, allow request
+      if (!origin) {
+        return callback(null, true);
       }
+
+      const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+      if (isDevelopment && isLocalhost) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin) || isLocalhost) {
+        return callback(null, true);
+      }
+
+      console.warn(`[SECURITY] Blocked CORS request from unauthorized origin: ${origin}`);
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],

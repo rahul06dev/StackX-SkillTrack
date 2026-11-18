@@ -293,6 +293,8 @@
     padding-bottom: 2rem;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+    width: 100%;
+    max-width: 100%;
 }
 
 /* Base Column Styles */
@@ -758,17 +760,24 @@
     background-color: #ffffff; /* White background for all swatches */
     border: 3px solid transparent; /* Reserve space for border */
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
 }
-.color-swatch-button:hover {
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+.color-swatch-button.swatch-unselected:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+    border-color: #e5e7eb;
 }
 
-/* Selected Swatch (The purple outline) */
-.swatch-selected {
-    /* The distinctive purple gradient border from the screenshot */
-    border-color: #ffffff; /* White center for the border */
+/* Selected Swatch (The purple outline) - stays fully visible even during hover and focus */
+.color-swatch-button.swatch-selected,
+.color-swatch-button.swatch-selected:hover,
+.color-swatch-button.swatch-selected:focus {
+    border-color: #ffffff !important; /* White center for the border */
     /* Custom ring to match the purple glow */
-    box-shadow: 0 0 0 3px #d797f7, 0 0 0 6px rgba(164, 80, 139, 0.4); 
+    box-shadow: 0 0 0 3px #d797f7, 0 0 0 6px rgba(164, 80, 139, 0.45) !important;
+    outline: none;
+    transform: translateY(-1px);
 }
 
 /* Color Theme Gradients (Must match the image exactly) */

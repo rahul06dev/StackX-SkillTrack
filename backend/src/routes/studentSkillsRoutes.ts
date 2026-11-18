@@ -143,11 +143,17 @@ router.get(
           },
           evidence: {
             select: {
+              id: true,
               project: {
                 select: {
                   id: true,
                   title: true,
                   status: true,
+                  projectSkills: {
+                    select: {
+                      skillId: true,
+                    },
+                  },
                 },
               },
             },
@@ -156,8 +162,55 @@ router.get(
         orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       });
 
+      // Clean up any orphaned PENDING claims whose project evidence was removed or no longer contains the skill
+      const validStudentSkillRecords = [];
+      const staleStudentSkillIds: string[] = [];
+      const staleEvidenceIds: string[] = [];
+
+      for (const ss of studentSkillRecords) {
+        // Evidence projects that still genuinely have this skill attached
+        const validEvidences = ss.evidence.filter((e) =>
+          e.project.projectSkills?.some((ps) => ps.skillId === ss.skill.id)
+        );
+
+        // Stale evidence records (project no longer contains this skill)
+        const invalidEvidences = ss.evidence.filter(
+          (e) => !e.project.projectSkills?.some((ps) => ps.skillId === ss.skill.id)
+        );
+        for (const ie of invalidEvidences) {
+          staleEvidenceIds.push(ie.id);
+        }
+
+        if (ss.verification === 'PENDING' && validEvidences.length === 0) {
+          // If a pending claim has no valid project evidence left, purge it
+          staleStudentSkillIds.push(ss.id);
+        } else {
+          validStudentSkillRecords.push({
+            ...ss,
+            evidence: validEvidences,
+          });
+        }
+      }
+
+      // Cleanup stale records in the background
+      if (staleEvidenceIds.length > 0) {
+        prisma.studentSkillEvidence
+          .deleteMany({
+            where: { id: { in: staleEvidenceIds } },
+          })
+          .catch((err) => console.error('Error cleaning up stale evidence:', err));
+      }
+
+      if (staleStudentSkillIds.length > 0) {
+        prisma.studentSkill
+          .deleteMany({
+            where: { id: { in: staleStudentSkillIds } },
+          })
+          .catch((err) => console.error('Error cleaning up stale pending claims:', err));
+      }
+
       // (A) VERIFIED COMPETENCIES (Paper Eq. 3-4)
-      const verifiedSkills = studentSkillRecords
+      const verifiedSkills = validStudentSkillRecords
         .filter((ss) => ss.verification === 'VERIFIED')
         .map((ss) => ({
           id: ss.id,
@@ -174,7 +227,7 @@ router.get(
         }));
 
       // (B) PENDING CLAIMS
-      const pendingSkills = studentSkillRecords
+      const pendingSkills = validStudentSkillRecords
         .filter((ss) => ss.verification === 'PENDING')
         .map((ss) => ({
           id: ss.id,
@@ -189,7 +242,7 @@ router.get(
         }));
 
       // (C) REJECTED CLAIMS (With Faculty Feedback & Reason)
-      const rejectedSkills = studentSkillRecords
+      const rejectedSkills = validStudentSkillRecords
         .filter((ss) => ss.verification === 'REJECTED')
         .map((ss) => ({
           id: ss.id,
@@ -207,7 +260,7 @@ router.get(
         }));
 
       // Backwards-compatible submittedSkills list
-      const submittedSkills = studentSkillRecords.map((ss) => ({
+      const submittedSkills = validStudentSkillRecords.map((ss) => ({
         id: ss.id,
         name: ss.skill.name,
         category: ss.skill.category,
@@ -407,21 +460,32 @@ router.post(
             },
           });
 
-          // Link skill claim to all selected projects as evidence
+          // Link skill claim only to projects that actually have this skill (or single target project)
           for (const pId of targetProjectIds) {
-            await tx.studentSkillEvidence.upsert({
+            const projectHasSkill = await tx.projectSkill.findUnique({
               where: {
-                studentSkillId_projectId: {
+                projectId_skillId: {
+                  projectId: pId,
+                  skillId: skill.id,
+                },
+              },
+            });
+
+            if (projectHasSkill || targetProjectIds.length === 1) {
+              await tx.studentSkillEvidence.upsert({
+                where: {
+                  studentSkillId_projectId: {
+                    studentSkillId: ss.id,
+                    projectId: pId,
+                  },
+                },
+                create: {
                   studentSkillId: ss.id,
                   projectId: pId,
                 },
-              },
-              create: {
-                studentSkillId: ss.id,
-                projectId: pId,
-              },
-              update: {},
-            });
+                update: {},
+              });
+            }
           }
 
           results.push(ss);

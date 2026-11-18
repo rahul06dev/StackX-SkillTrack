@@ -769,7 +769,7 @@ const ProjectBoardPage = () => {
       <div className="flex flex-col md:flex-row min-h-screen">
         <Sidebar activeTab="projects" />
 
-        <div className="flex-1 p-4 sm:p-6 lg:p-10 dashboard-page-bg">
+        <div className="flex-1 min-w-0 max-w-full p-4 sm:p-6 lg:p-10 dashboard-page-bg">
           <p>Loading project board...</p>
         </div>
       </div>
@@ -786,7 +786,7 @@ const ProjectBoardPage = () => {
       <div className="flex flex-col md:flex-row min-h-screen">
         <Sidebar activeTab="projects" />
 
-        <div className="flex-1 p-4 sm:p-6 lg:p-10 dashboard-page-bg">
+        <div className="flex-1 min-w-0 max-w-full p-4 sm:p-6 lg:p-10 dashboard-page-bg">
           <div
             style={{
               maxWidth: '560px',
@@ -875,7 +875,7 @@ const ProjectBoardPage = () => {
     <div className="flex flex-col md:flex-row min-h-screen">
       <Sidebar activeTab="projects" />
 
-      <div className="flex-1 p-4 sm:p-6 lg:p-10 dashboard-page-bg">
+      <div className="flex-1 min-w-0 max-w-full overflow-x-hidden p-4 sm:p-6 lg:p-10 dashboard-page-bg">
 
         {/* Header Section */}
         <div className="mb-8">
@@ -975,10 +975,10 @@ const ProjectBoardPage = () => {
             </div>
           )}
 
-          <div className="flex justify-between items-start">
-            <div>
+          <div className="flex justify-between items-start gap-4 flex-wrap">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-3 flex-wrap mb-2">
-                <h1 className="text-4xl font-bold project-board-title">
+                <h1 className="text-3xl sm:text-4xl font-bold project-board-title leading-tight">
                   {project.title}
                 </h1>
 
@@ -1032,10 +1032,10 @@ const ProjectBoardPage = () => {
             </div>
 
             {!project.isPendingInvitation && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-shrink-0">
                 <button
                   type="button"
-                  className="activity-button flex items-center gap-2 px-5 py-3 rounded-xl font-semibold bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 transition shadow-sm"
+                  className="activity-button flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 transition shadow-sm whitespace-nowrap flex-shrink-0"
                   onClick={() => setIsActivityModalOpen(true)}
                 >
                   <i className="fa fa-history text-purple-600"></i>
@@ -1044,7 +1044,7 @@ const ProjectBoardPage = () => {
 
                 <button
                   type="button"
-                  className="add-column-button flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition"
+                  className="add-column-button flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition whitespace-nowrap flex-shrink-0"
                   onClick={handleOpenModal}
                 >
                   <i className="fa fa-plus"></i>

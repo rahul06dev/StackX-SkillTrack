@@ -81,18 +81,30 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ isOpen: _isOpen, onClos
                     <div className="color-theme-selector">
                         <label className="input-label text-sm font-bold mb-3 block">Color Theme</label>
                         <div className="grid grid-cols-4 gap-4">
-                            {COLOR_THEMES.map((theme) => (
-                                <button
-                                    key={theme.name}
-                                    className={`color-swatch-button flex flex-col items-center p-1 rounded-xl transition duration-200 ${
-                                        selectedTheme.name === theme.name ? 'swatch-selected' : 'swatch-unselected'
-                                    }`}
-                                    onClick={() => setSelectedTheme(theme)}
-                                >
-                                    <div className={`color-swatch w-full h-10 rounded-lg ${theme.class}`}></div>
-                                    <span className="text-xs mt-1 text-gray-700 font-medium">{theme.name}</span>
-                                </button>
-                            ))}
+                            {COLOR_THEMES.map((theme) => {
+                                const isSelected = selectedTheme.name === theme.name;
+                                return (
+                                    <button
+                                        type="button"
+                                        key={theme.name}
+                                        className={`color-swatch-button flex flex-col items-center p-1 rounded-xl transition duration-200 ${
+                                            isSelected ? 'swatch-selected' : 'swatch-unselected'
+                                        }`}
+                                        onClick={() => setSelectedTheme(theme)}
+                                    >
+                                        <div className={`color-swatch relative w-full h-10 rounded-lg flex items-center justify-center ${theme.class}`}>
+                                            {isSelected && (
+                                                <i className="fa fa-check text-white text-sm drop-shadow-sm"></i>
+                                            )}
+                                        </div>
+                                        <span className={`text-xs mt-1 font-medium ${
+                                            isSelected ? 'text-purple-700 font-bold' : 'text-gray-700'
+                                        }`}>
+                                            {theme.name}
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>

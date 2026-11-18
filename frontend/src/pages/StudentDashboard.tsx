@@ -96,13 +96,6 @@ const StudentDashboard = () => {
     projects: SkillProject[];
   }
 
-  interface AvailableSkill {
-    id: string;
-    name: string;
-    category: string | null;
-    isActive: boolean;
-  }
-
   interface TeamInvitation {
     id: string;
     projectId: string;
@@ -164,7 +157,6 @@ const StudentDashboard = () => {
 
   // Multi-Project Evidence Skill Claim Modal State
   const [showClaimModal, setShowClaimModal] = useState(false);
-  const [availableSkills, setAvailableSkills] = useState<AvailableSkill[]>([]);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [claimLevel, setClaimLevel] = useState<string>('INTERMEDIATE');
@@ -366,19 +358,6 @@ const StudentDashboard = () => {
       setSelectedSkillIds([]);
     }
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/api/skills`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error('Failed to fetch skills');
-      const data: AvailableSkill[] = await response.json();
-      setAvailableSkills(data.filter((s) => s.isActive));
-    } catch (err) {
-      console.error('Error loading skills for claim:', err);
-      setAvailableSkills([]);
-    }
-
     // Populate or fetch project skills for student's projects
     const token = localStorage.getItem('token');
     if (token && projects.length > 0) {
@@ -418,34 +397,56 @@ const StudentDashboard = () => {
     }
   };
 
-  // Unique aggregated skills from all selected projects
+  // Common skills present across ALL selected projects (intersection)
   const skillsFromSelectedProjects = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; category: string | null; projectTitles: string[] }>();
+    if (selectedProjectIds.length === 0) return [];
 
-    selectedProjectIds.forEach((pId) => {
+    const projectSkillLists = selectedProjectIds.map((pId) => {
       const project = projects.find((p) => p.id === pId);
-      const projTitle = project?.title || 'Selected Project';
-      const skills = projectSkillsCache[pId] || project?.skills || [];
-
-      skills.forEach((skill) => {
-        if (!map.has(skill.id)) {
-          map.set(skill.id, {
-            id: skill.id,
-            name: skill.name,
-            category: skill.category || null,
-            projectTitles: [projTitle],
-          });
-        } else {
-          const existing = map.get(skill.id)!;
-          if (!existing.projectTitles.includes(projTitle)) {
-            existing.projectTitles.push(projTitle);
-          }
-        }
-      });
+      const skills: ProjectSkillInfo[] = projectSkillsCache[pId] || project?.skills || [];
+      return {
+        projectId: pId,
+        projectTitle: project?.title || 'Selected Project',
+        skills,
+      };
     });
 
-    return Array.from(map.values());
+    const firstProject = projectSkillLists[0];
+    if (!firstProject || firstProject.skills.length === 0) {
+      return [];
+    }
+
+    const commonSkills: Array<{
+      id: string;
+      name: string;
+      category: string | null;
+      projectTitles: string[];
+    }> = [];
+
+    firstProject.skills.forEach((skill) => {
+      // Check if this skill exists across ALL selected projects
+      const inAllProjects = projectSkillLists.every((p) =>
+        p.skills.some((s) => s.id === skill.id)
+      );
+
+      if (inAllProjects) {
+        commonSkills.push({
+          id: skill.id,
+          name: skill.name,
+          category: skill.category || null,
+          projectTitles: projectSkillLists.map((p) => p.projectTitle),
+        });
+      }
+    });
+
+    return commonSkills;
   }, [selectedProjectIds, projectSkillsCache, projects]);
+
+  // Keep selected skills in sync with the common skills intersection
+  useEffect(() => {
+    const validSkillIds = new Set(skillsFromSelectedProjects.map((s) => s.id));
+    setSelectedSkillIds((prev) => prev.filter((id) => validSkillIds.has(id)));
+  }, [skillsFromSelectedProjects]);
 
   const toggleProjectSelection = (projectId: string) => {
     setSelectedProjectIds((prev) =>
@@ -906,7 +907,9 @@ const StudentDashboard = () => {
                       )}
                     </div>
                     <p className="claim-step-subtitle">
-                      Choose the skill competencies demonstrated across your selected project evidence.
+                      {selectedProjectIds.length > 1
+                        ? 'Showing only common skills shared across ALL selected projects to ensure authentic evidence.'
+                        : 'Choose the skill competencies demonstrated in your selected project.'}
                     </p>
 
                     {selectedProjectIds.length === 0 ? (
@@ -955,33 +958,17 @@ const StudentDashboard = () => {
                         <div className="claim-empty-notice warning">
                           <i className="fa fa-exclamation-circle text-amber-500"></i>
                           <div>
-                            <strong>No skills attached to the selected project(s) yet.</strong>
-                            <p style={{ margin: '3px 0 0 0', fontSize: '12px' }}>
-                              You can select a skill from the catalogue below, or attach skills directly on the project board.
+                            <strong>
+                              {selectedProjectIds.length > 1
+                                ? 'No common skills across selected projects.'
+                                : 'No skills attached to this project yet.'}
+                            </strong>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#475569' }}>
+                              {selectedProjectIds.length > 1
+                                ? 'To claim skills across multiple projects as evidence, they must share common skills. Please add common skills on each project board first, or select projects with shared skills.'
+                                : 'Please add skills to the project on the project board first to claim skills.'}
                             </p>
                           </div>
-                        </div>
-
-                        <div className="claim-fallback-select-container">
-                          <label htmlFor="fallback-skill-select" style={{ fontSize: '13px', fontWeight: 600 }}>
-                            Choose from catalogue:
-                          </label>
-                          <select
-                            id="fallback-skill-select"
-                            value={selectedSkillIds[0] || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setSelectedSkillIds(val ? [val] : []);
-                            }}
-                            className="claim-fallback-select"
-                          >
-                            <option value="">Select a skill...</option>
-                            {availableSkills.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name}{s.category ? ` — ${s.category}` : ''}
-                              </option>
-                            ))}
-                          </select>
                         </div>
                       </div>
                     )}

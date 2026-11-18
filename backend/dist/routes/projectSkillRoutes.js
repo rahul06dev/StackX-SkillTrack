@@ -296,13 +296,63 @@ router.delete('/:projectId/:skillId', authenticateUser, authorizeRoles('ADMIN', 
                 message: 'Skill is not attached to this project.',
             });
         }
-        await prisma.projectSkill.delete({
-            where: {
-                projectId_skillId: {
-                    projectId,
-                    skillId,
+        await prisma.$transaction(async (tx) => {
+            // 1. Delete the ProjectSkill attachment
+            await tx.projectSkill.delete({
+                where: {
+                    projectId_skillId: {
+                        projectId,
+                        skillId,
+                    },
                 },
-            },
+            });
+            // 2. Find any StudentSkillEvidence linking this project to a claim for this skill
+            const matchingEvidences = await tx.studentSkillEvidence.findMany({
+                where: {
+                    projectId,
+                    studentSkill: {
+                        skillId,
+                    },
+                },
+                select: {
+                    id: true,
+                    studentSkillId: true,
+                },
+            });
+            if (matchingEvidences.length > 0) {
+                const studentSkillIds = Array.from(new Set(matchingEvidences.map((e) => e.studentSkillId)));
+                // Delete the evidence records linking this project to this skill claim
+                await tx.studentSkillEvidence.deleteMany({
+                    where: {
+                        id: {
+                            in: matchingEvidences.map((e) => e.id),
+                        },
+                    },
+                });
+                // 3. For each affected claim, check if it has any remaining valid project evidence
+                for (const sSkillId of studentSkillIds) {
+                    const remainingValidEvidence = await tx.studentSkillEvidence.count({
+                        where: {
+                            studentSkillId: sSkillId,
+                            project: {
+                                projectSkills: {
+                                    some: {
+                                        skillId,
+                                    },
+                                },
+                            },
+                        },
+                    });
+                    // If no valid project evidence remains backing this claim, automatically delete the claim
+                    if (remainingValidEvidence === 0) {
+                        await tx.studentSkill.delete({
+                            where: {
+                                id: sSkillId,
+                            },
+                        });
+                    }
+                }
+            }
         });
         return res.status(200).json({
             message: 'Skill removed from project successfully.',

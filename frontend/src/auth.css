@@ -2675,8 +2675,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 18px;
+  flex-wrap: wrap;
 }
 
 .project-team-heading h2 {
@@ -3106,21 +3107,25 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .manage-team-button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 12px;
+  padding: 7px 14px;
   border: 1px solid #e0e7ff;
   border-radius: 9px;
   background: #ffffff;
   color: #4f46e5;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .manage-team-button:hover {
@@ -7056,62 +7061,82 @@
    PROJECT ACTIVE / COMPLETED STATUS TOGGLES & BADGES
    ======================================================== */
 
+@keyframes pulseStatusDot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.75;
+  }
+}
+
 .project-status-toggle-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
+  gap: 7px;
+  padding: 6px 14px;
   border-radius: 9999px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  border: 1px solid transparent;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1.5px solid transparent;
   user-select: none;
+  white-space: nowrap;
 }
 
 .project-status-toggle-pill.active {
   background: #eff6ff;
   color: #1d4ed8;
   border-color: #bfdbfe;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
 }
 .project-status-toggle-pill.active:hover {
   background: #dbeafe;
   border-color: #93c5fd;
   transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.15);
 }
 
 .project-status-toggle-pill.completed {
   background: #ecfdf5;
   color: #047857;
   border-color: #a7f3d0;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.08);
 }
 .project-status-toggle-pill.completed:hover {
   background: #d1fae5;
   border-color: #6ee7b7;
   transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.15);
 }
 
 .project-status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 7px;
+  padding: 5px 13px;
   border-radius: 9999px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
+  user-select: none;
+  white-space: nowrap;
 }
 
 .project-status-pill.active {
   background: #eff6ff;
   color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  border: 1.5px solid #bfdbfe;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
 }
 
 .project-status-pill.completed {
   background: #ecfdf5;
   color: #047857;
-  border: 1px solid #a7f3d0;
+  border: 1.5px solid #a7f3d0;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.08);
 }
 
 .status-dot {
@@ -7119,16 +7144,18 @@
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .status-dot.active {
-  background: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+  animation: pulseStatusDot 2s infinite ease-in-out;
 }
 
 .status-dot.completed {
-  background: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  background: #059669;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
 }
 
 /* Dashboard Project Filter Tabs */

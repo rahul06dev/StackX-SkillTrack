@@ -1062,47 +1062,6 @@ router.post('/', authenticateUser, authorizeRoles('FACULTY', 'ADMIN', 'STUDENT')
                 }
             }
         }
-        // If created by a student, automatically generate PENDING StudentSkill claims
-        // backed by this new project evidence (paper Eq. 1-2) using an atomic transaction (Phase 8)
-        if (isStudent && matchedSkillIds.length > 0) {
-            for (const skillId of matchedSkillIds) {
-                try {
-                    await prisma.$transaction(async (tx) => {
-                        const studentSkill = await tx.studentSkill.upsert({
-                            where: {
-                                studentId_skillId: {
-                                    studentId: userId,
-                                    skillId,
-                                },
-                            },
-                            create: {
-                                studentId: userId,
-                                skillId,
-                                level: 'BEGINNER',
-                                verification: 'PENDING',
-                            },
-                            update: {},
-                        });
-                        await tx.studentSkillEvidence.upsert({
-                            where: {
-                                studentSkillId_projectId: {
-                                    studentSkillId: studentSkill.id,
-                                    projectId: newProject.id,
-                                },
-                            },
-                            create: {
-                                studentSkillId: studentSkill.id,
-                                projectId: newProject.id,
-                            },
-                            update: {},
-                        });
-                    });
-                }
-                catch (skillErr) {
-                    console.error('Error auto-creating student skill claim:', skillErr);
-                }
-            }
-        }
         // Log project creation activity
         const creator = await prisma.user.findUnique({
             where: { id: userId },
@@ -1192,37 +1151,6 @@ router.post('/:id/technologies', authenticateUser, authorizeProjectAccess, async
                     },
                 });
                 newlyAddedSkills.push(created.skill);
-            }
-            // If caller is student, generate student skill claim in PENDING state
-            if (userRole === 'STUDENT') {
-                const studentSkill = await prisma.studentSkill.upsert({
-                    where: {
-                        studentId_skillId: {
-                            studentId: userId,
-                            skillId,
-                        },
-                    },
-                    create: {
-                        studentId: userId,
-                        skillId,
-                        level: 'BEGINNER',
-                        verification: 'PENDING',
-                    },
-                    update: {},
-                });
-                await prisma.studentSkillEvidence.upsert({
-                    where: {
-                        studentSkillId_projectId: {
-                            studentSkillId: studentSkill.id,
-                            projectId,
-                        },
-                    },
-                    create: {
-                        studentSkillId: studentSkill.id,
-                        projectId,
-                    },
-                    update: {},
-                });
             }
         }
         return res.json({
