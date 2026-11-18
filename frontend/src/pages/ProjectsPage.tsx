@@ -182,13 +182,15 @@ const ProjectsPage = () => {
             </p>
           </div>
 
-          <button
-            onClick={handleOpenModal}
-            className="projects-new-button"
-          >
-            <span>+</span>
-            New Project
-          </button>
+          {projectFilter === 'ALL' && (
+            <button
+              onClick={handleOpenModal}
+              className="projects-new-button"
+            >
+              <span>+</span>
+              New Project
+            </button>
+          )}
 
         </div>
 
@@ -236,7 +238,7 @@ const ProjectsPage = () => {
               />
             ))
 
-          ) : (
+          ) : projects.length === 0 ? (
 
             <div className="projects-empty-state">
 
@@ -260,6 +262,33 @@ const ProjectsPage = () => {
                 style={{ marginTop: '14px' }}
               >
                 <i className="fa fa-plus"></i> Create New Project
+              </button>
+
+            </div>
+
+          ) : (
+
+            <div className="projects-empty-state" style={{ padding: '36px 20px' }}>
+
+              <div className="projects-empty-icon" style={{ fontSize: '32px', color: '#94a3b8' }}>
+                <i className={projectFilter === 'COMPLETED' ? 'fa fa-check-circle' : 'fa fa-tasks'}></i>
+              </div>
+
+              <h2>0 {projectFilter === 'COMPLETED' ? 'Completed' : 'Active'} Projects</h2>
+
+              <p>
+                {projectFilter === 'COMPLETED'
+                  ? 'There are currently 0 completed projects. Projects marked as completed will appear here.'
+                  : 'There are currently 0 active projects. All projects are either completed or archived.'}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setProjectFilter('ALL')}
+                className="student-primary-button"
+                style={{ marginTop: '14px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}
+              >
+                View All Projects ({projects.length})
               </button>
 
             </div>

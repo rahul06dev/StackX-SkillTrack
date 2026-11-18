@@ -1460,12 +1460,14 @@ const StudentDashboard = () => {
                 </button>
               </div>
 
-              <button
-                className="student-primary-button"
-                onClick={() => navigate('/projects?create=true')}
-              >
-                + New Project
-              </button>
+              {projectFilter === 'ALL' && (
+                <button
+                  className="student-primary-button"
+                  onClick={() => navigate('/projects?create=true')}
+                >
+                  + New Project
+                </button>
+              )}
             </div>
           </div>
 
@@ -1492,15 +1494,18 @@ const StudentDashboard = () => {
             </div>
           ) : displayedProjects.length === 0 ? (
             <div className="student-empty-state">
-              <h3>No {projectFilter.toLowerCase()} projects</h3>
-              <p>You have no projects matching the {projectFilter.toLowerCase()} filter.</p>
+              <div style={{ fontSize: '30px', color: '#94a3b8', marginBottom: '8px' }}>
+                <i className={projectFilter === 'COMPLETED' ? 'fa fa-check-circle' : 'fa fa-tasks'}></i>
+              </div>
+              <h3>0 {projectFilter === 'COMPLETED' ? 'Completed' : 'Active'} Projects</h3>
+              <p>There are currently 0 {projectFilter.toLowerCase()} projects.</p>
               <button
                 type="button"
                 className="student-primary-button"
                 onClick={() => setProjectFilter('ALL')}
                 style={{ marginTop: '10px' }}
               >
-                Show All Projects
+                View All Projects ({projects.length})
               </button>
             </div>
           ) : (

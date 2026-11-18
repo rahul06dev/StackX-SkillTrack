@@ -133,14 +133,16 @@ const AdminProjectsPage: React.FC = () => {
                         </p>
                     </div>
 
-                    <button
-                        type="button"
-                        className="admin-primary-button"
-                        onClick={() => setIsModalOpen(true)}
-                    >
-                        <i className="fa fa-plus" />
-                        New Project
-                    </button>
+                    {statusFilter === 'ALL' && (
+                        <button
+                            type="button"
+                            className="admin-primary-button"
+                            onClick={() => setIsModalOpen(true)}
+                        >
+                            <i className="fa fa-plus" />
+                            New Project
+                        </button>
+                    )}
                 </header>
 
                 <section className="admin-project-toolbar">
@@ -212,12 +214,16 @@ const AdminProjectsPage: React.FC = () => {
                         <h3>
                             {searchTerm
                                 ? 'No projects found'
+                                : statusFilter !== 'ALL'
+                                ? `0 ${statusFilter === 'COMPLETED' ? 'Completed' : 'Active'} Projects`
                                 : 'No projects available'}
                         </h3>
 
                         <p>
                             {searchTerm
                                 ? `No projects match "${searchTerm}". Try a different search.`
+                                : statusFilter !== 'ALL'
+                                ? `There are currently 0 ${statusFilter.toLowerCase()} projects.`
                                 : 'Projects created on SkillTrack will appear here.'}
                         </p>
 
@@ -231,7 +237,7 @@ const AdminProjectsPage: React.FC = () => {
                             </button>
                         )}
 
-                        {!searchTerm && (
+                        {!searchTerm && statusFilter === 'ALL' && (
                             <button
                                 type="button"
                                 onClick={() => setIsModalOpen(true)}
@@ -239,6 +245,16 @@ const AdminProjectsPage: React.FC = () => {
                             >
                                 <i className="fa fa-plus" />
                                 Create Project
+                            </button>
+                        )}
+
+                        {!searchTerm && statusFilter !== 'ALL' && (
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilter('ALL')}
+                                className="admin-primary-button"
+                            >
+                                View All Projects ({projects.length})
                             </button>
                         )}
                     </div>
