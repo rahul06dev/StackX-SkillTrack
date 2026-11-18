@@ -20,6 +20,7 @@ interface ProjectDetails {
   title: string;
   description: string;
   createdById?: string;
+  status?: 'ACTIVE' | 'COMPLETED';
   students: ProjectPerson[];
   faculty: ProjectPerson[];
   admins: ProjectPerson[];
@@ -63,6 +64,7 @@ const ProjectBoardPage = () => {
   const [project, setProject] = useState<ProjectDetails>({
     title: 'Loading...',
     description: '',
+    status: 'ACTIVE',
     students: [],
     faculty: [],
     admins: [],
@@ -72,12 +74,52 @@ const ProjectBoardPage = () => {
   const user = userData ? JSON.parse(userData) : null;
   const isOwner = user?.id ? project.createdById === user.id : false;
   const isAdmin = user?.role === 'ADMIN';
+  const isFaculty = user?.role === 'FACULTY';
   const isFacultySupervisor = project.faculty.some(f => f.id === user?.id);
   const isStudentMember = user?.role === 'STUDENT' && (
     isOwner || project.students.some(s => s.id === user?.id)
   );
   const canManageTeam = !project.isPendingInvitation && (isOwner || isAdmin || isFacultySupervisor);
   const canManageSkills = !project.isPendingInvitation && (isOwner || isAdmin || isFacultySupervisor || isStudentMember);
+  const canToggleStatus = !project.isPendingInvitation && (isFacultySupervisor || isFaculty || isAdmin);
+
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+
+  const handleToggleProjectStatus = async () => {
+    if (!parsedProjectId || isUpdatingStatus) return;
+    const currentStatus = project.status || 'ACTIVE';
+    const newStatus = currentStatus === 'COMPLETED' ? 'ACTIVE' : 'COMPLETED';
+
+    setIsUpdatingStatus(true);
+    setStatusFeedback(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/projects/${parsedProjectId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update project status');
+      }
+
+      setProject((prev) => ({ ...prev, status: newStatus }));
+      setStatusFeedback(`Status marked as ${newStatus === 'COMPLETED' ? 'Completed' : 'Active'}`);
+      setTimeout(() => setStatusFeedback(null), 3000);
+    } catch (err: any) {
+      console.error('Error toggling status:', err);
+      setStatusFeedback(err.message || 'Failed to update status');
+      setTimeout(() => setStatusFeedback(null), 4000);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   const [columns, setColumns] = useState<Column[]>([]);
   const [loading, setLoading] = useState(true);
@@ -328,6 +370,7 @@ const ProjectBoardPage = () => {
           title: projectData.title,
           description: projectData.description,
           createdById: (projectData as any).createdById,
+          status: projectData.status || 'ACTIVE',
           students: projectData.students || [],
           faculty: projectData.faculty || [],
           admins: projectData.admins || [],
@@ -670,6 +713,7 @@ const ProjectBoardPage = () => {
           title: updatedProject.title,
           description: updatedProject.description,
           createdById: (updatedProject as any).createdById,
+          status: updatedProject.status || 'ACTIVE',
           students: updatedProject.students || [],
           faculty: updatedProject.faculty || [],
           admins: updatedProject.admins || [],
@@ -933,9 +977,54 @@ const ProjectBoardPage = () => {
 
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-4xl font-bold project-board-title">
-                {project.title}
-              </h1>
+              <div className="flex items-center gap-3 flex-wrap mb-2">
+                <h1 className="text-4xl font-bold project-board-title">
+                  {project.title}
+                </h1>
+
+                {/* Status Badge & Faculty Toggle */}
+                {!project.isPendingInvitation && (
+                  <div className="flex items-center gap-2">
+                    {canToggleStatus ? (
+                      <button
+                        type="button"
+                        onClick={handleToggleProjectStatus}
+                        disabled={isUpdatingStatus}
+                        className={`project-status-toggle-pill ${
+                          project.status === 'COMPLETED' ? 'completed' : 'active'
+                        }`}
+                        title="Click to toggle project status (Faculty control)"
+                      >
+                        <span className={`status-dot ${project.status === 'COMPLETED' ? 'completed' : 'active'}`}></span>
+                        <span>
+                          {isUpdatingStatus
+                            ? 'Updating...'
+                            : project.status === 'COMPLETED'
+                            ? 'Completed'
+                            : 'Active'}
+                        </span>
+                        <i className={`fa ${project.status === 'COMPLETED' ? 'fa-check' : 'fa-play'} text-xs ml-1 opacity-75`}></i>
+                      </button>
+                    ) : (
+                      <span
+                        className={`project-status-pill ${
+                          project.status === 'COMPLETED' ? 'completed' : 'active'
+                        }`}
+                        title={`Project is currently ${project.status === 'COMPLETED' ? 'Completed' : 'Active'}`}
+                      >
+                        <span className={`status-dot ${project.status === 'COMPLETED' ? 'completed' : 'active'}`}></span>
+                        <span>{project.status === 'COMPLETED' ? 'Completed' : 'Active'}</span>
+                      </span>
+                    )}
+
+                    {statusFeedback && (
+                      <span className="text-xs text-indigo-600 font-medium">
+                        {statusFeedback}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <p className="text-gray-600 max-w-4xl">
                 {project.description}

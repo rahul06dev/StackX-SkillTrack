@@ -1028,6 +1028,101 @@ router.put(
   }
 );
 
+// --- Update Project Status (Active <-> Completed) ---
+// Restricted to supervising Faculty and Admins
+router.patch(
+  '/:id/status',
+  authenticateUser,
+  authorizeRoles('ADMIN', 'FACULTY'),
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const projectId = req.params.id;
+      const { status } = req.body;
+
+      if (!status || (status !== 'ACTIVE' && status !== 'COMPLETED')) {
+        return res.status(400).json({
+          message: "Invalid status. Allowed values are 'ACTIVE' or 'COMPLETED'.",
+        });
+      }
+
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          createdById: true,
+          assignedFacultyId: true,
+          students: { select: { studentId: true } },
+          faculty: { select: { facultyId: true } },
+        },
+      });
+
+      if (!project) {
+        return res.status(404).json({ message: 'Project not found.' });
+      }
+
+      // Check permissions: Admin always, Faculty only if assigned or creator
+      if (req.user?.role === 'FACULTY') {
+        const isSupervisingFaculty =
+          project.assignedFacultyId === req.user.id ||
+          project.createdById === req.user.id ||
+          project.faculty.some((f) => f.facultyId === req.user!.id);
+
+        if (!isSupervisingFaculty) {
+          return res.status(403).json({
+            message: 'You can only update status for projects you supervise or created.',
+          });
+        }
+      }
+
+      const updatedProject = await prisma.project.update({
+        where: { id: projectId },
+        data: { status },
+      });
+
+      // Log activity
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { name: true },
+      });
+
+      await logActivity({
+        projectId,
+        userId: req.user!.id,
+        userName: user?.name || 'Faculty',
+        action: 'PROJECT_STATUS_CHANGED',
+        details: `Project marked as ${status === 'COMPLETED' ? 'Completed' : 'Active'} by ${user?.name || 'Faculty'}`,
+      });
+
+      // Notify project students of the status change
+      for (const student of project.students) {
+        if (student.studentId !== req.user!.id) {
+          await createNotification({
+            userId: student.studentId,
+            type: 'SYSTEM_ALERT',
+            title: `Project ${status === 'COMPLETED' ? 'Completed' : 'Reactivated'}`,
+            message: `Faculty marked "${project.title}" as ${status === 'COMPLETED' ? 'Completed' : 'Active'}.`,
+            link: `/projects/${projectId}`,
+          });
+        }
+      }
+
+      return res.json({
+        id: updatedProject.id,
+        title: updatedProject.title,
+        status: updatedProject.status,
+        message: `Project status successfully updated to ${status}.`,
+      });
+    } catch (error) {
+      console.error('❌ Error updating project status:', error);
+      return res.status(500).json({
+        message: 'Failed to update project status.',
+      });
+    }
+  }
+);
+
 // --- Project POST Route (Create New Project) ---
 // Applies rule-based mapping engine (R ⊆ T × S) from submitted technologies
 // and project context to catalogue skills.

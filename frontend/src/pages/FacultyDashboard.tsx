@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import NotificationBell from '../components/NotificationBell';
@@ -403,6 +403,39 @@ const FacultyDashboard = () => {
     }
   };
 
+  const [projectFilter, setProjectFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
+  const [togglingProjectId, setTogglingProjectId] = useState<string | null>(null);
+
+  const handleToggleProjectStatus = async (projectId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'COMPLETED' ? 'ACTIVE' : 'COMPLETED';
+    setTogglingProjectId(projectId);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update project status');
+      }
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, status: newStatus } : p))
+      );
+      setVerificationFeedback(`Project marked as ${newStatus === 'COMPLETED' ? 'Completed' : 'Active'}`);
+      setTimeout(() => setVerificationFeedback(null), 3000);
+    } catch (err: any) {
+      console.error('Failed to toggle status:', err);
+      alert(err.message || 'Failed to toggle status');
+    } finally {
+      setTogglingProjectId(null);
+    }
+  };
+
   const activeProjects = projects.filter(
     (project) => project.status !== 'COMPLETED'
   );
@@ -410,6 +443,12 @@ const FacultyDashboard = () => {
   const completedProjects = projects.filter(
     (project) => project.status === 'COMPLETED'
   );
+
+  const displayedProjects = useMemo(() => {
+    if (projectFilter === 'ACTIVE') return activeProjects;
+    if (projectFilter === 'COMPLETED') return completedProjects;
+    return projects;
+  }, [projectFilter, projects, activeProjects, completedProjects]);
 
   return (
     <div className="faculty-page">
@@ -795,15 +834,46 @@ const FacultyDashboard = () => {
         {/* Supervised Projects */}
         <section className="faculty-section">
 
-          <div className="faculty-section-header">
-            <h2>Supervised Projects</h2>
+          <div className="faculty-section-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h2>Supervised Projects</h2>
+              <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0' }}>
+                Toggle project status between Active and Completed directly from the card.
+              </p>
+            </div>
 
-            <button
-              className="student-primary-button"
-              onClick={() => navigate('/projects?create=true')}
-            >
-              + New Project
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div className="dashboard-filter-tabs">
+                <button
+                  type="button"
+                  className={`dashboard-filter-tab ${projectFilter === 'ALL' ? 'active' : ''}`}
+                  onClick={() => setProjectFilter('ALL')}
+                >
+                  All <span className="badge">{projects.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-tab ${projectFilter === 'ACTIVE' ? 'active' : ''}`}
+                  onClick={() => setProjectFilter('ACTIVE')}
+                >
+                  Active <span className="badge">{activeProjects.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-tab ${projectFilter === 'COMPLETED' ? 'active' : ''}`}
+                  onClick={() => setProjectFilter('COMPLETED')}
+                >
+                  Completed <span className="badge">{completedProjects.length}</span>
+                </button>
+              </div>
+
+              <button
+                className="student-primary-button"
+                onClick={() => navigate('/projects?create=true')}
+              >
+                + New Project
+              </button>
+            </div>
           </div>
 
           {loadingProjects ? (
@@ -825,10 +895,23 @@ const FacultyDashboard = () => {
                 Projects assigned to you for supervision will appear here.
               </p>
             </div>
+          ) : displayedProjects.length === 0 ? (
+            <div className="faculty-empty-state">
+              <h3>No {projectFilter.toLowerCase()} projects</h3>
+              <p>You have no projects matching the {projectFilter.toLowerCase()} filter.</p>
+              <button
+                type="button"
+                className="student-primary-button"
+                onClick={() => setProjectFilter('ALL')}
+                style={{ marginTop: '10px' }}
+              >
+                Show All Projects
+              </button>
+            </div>
           ) : (
             <div className="faculty-projects-list">
 
-              {projects.map((project) => (
+              {displayedProjects.map((project) => (
                 <div
                   key={project.id}
                   className="faculty-project-card"
@@ -837,17 +920,28 @@ const FacultyDashboard = () => {
                   <div className="faculty-project-card-header">
                     <h3>{project.title}</h3>
 
-                    <span
-                      className={
-                        project.status === 'COMPLETED'
-                          ? 'faculty-status completed'
-                          : 'faculty-status active'
-                      }
+                    <button
+                      type="button"
+                      className={`faculty-status-toggle-btn ${
+                        project.status === 'COMPLETED' ? 'completed' : 'active'
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleProjectStatus(project.id, project.status);
+                      }}
+                      disabled={togglingProjectId === project.id}
+                      title="Click to toggle Active / Completed status"
                     >
-                      {project.status === 'COMPLETED'
-                        ? 'Completed'
-                        : 'Active'}
-                    </span>
+                      <span className={`status-dot ${project.status === 'COMPLETED' ? 'completed' : 'active'}`}></span>
+                      <span>
+                        {togglingProjectId === project.id
+                          ? '...'
+                          : project.status === 'COMPLETED'
+                          ? 'Completed'
+                          : 'Active'}
+                      </span>
+                      <i className="fa fa-sync-alt" style={{ fontSize: '9px', opacity: 0.7, marginLeft: '3px' }}></i>
+                    </button>
                   </div>
 
                   <p>{project.description}</p>

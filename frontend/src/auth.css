@@ -7052,4 +7052,163 @@
   border: 1px solid #c7d2fe;
 }
 
+/* ========================================================
+   PROJECT ACTIVE / COMPLETED STATUS TOGGLES & BADGES
+   ======================================================== */
+
+.project-status-toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+.project-status-toggle-pill.active {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+.project-status-toggle-pill.active:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.project-status-toggle-pill.completed {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.project-status-toggle-pill.completed:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  transform: translateY(-1px);
+}
+
+.project-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.project-status-pill.active {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.project-status-pill.completed {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.active {
+  background: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.status-dot.completed {
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+/* Dashboard Project Filter Tabs */
+.dashboard-filter-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.dashboard-filter-tab {
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dashboard-filter-tab:hover {
+  color: #1e293b;
+}
+
+.dashboard-filter-tab.active {
+  background: #ffffff;
+  color: #4f46e5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.dashboard-filter-tab .badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.dashboard-filter-tab.active .badge {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+/* Faculty Card Status Toggle Button */
+.faculty-status-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.faculty-status-toggle-btn.active {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+.faculty-status-toggle-btn.active:hover {
+  background: #dbeafe;
+}
+
+.faculty-status-toggle-btn.completed {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.faculty-status-toggle-btn.completed:hover {
+  background: #d1fae5;
+}
+
 

@@ -130,6 +130,15 @@ const StudentDashboard = () => {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [projectFilter, setProjectFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
+
+  const activeProjects = projects.filter((p) => p.status !== 'COMPLETED');
+  const completedProjects = projects.filter((p) => p.status === 'COMPLETED');
+  const displayedProjects = useMemo(() => {
+    if (projectFilter === 'ACTIVE') return activeProjects;
+    if (projectFilter === 'COMPLETED') return completedProjects;
+    return projects;
+  }, [projectFilter, projects, activeProjects, completedProjects]);
 
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [, setLoadingInvitations] = useState(true);
@@ -1418,19 +1427,46 @@ const StudentDashboard = () => {
         {/* Projects */}
         <section className="student-section">
 
-          <div className="student-section-header">
+          <div className="student-section-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h2>My Projects</h2>
               <p className="skills-section-subtitle">
                 Academic projects you created or collaborate on.
               </p>
             </div>
-            <button
-              className="student-primary-button"
-              onClick={() => navigate('/projects?create=true')}
-            >
-              + New Project
-            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div className="dashboard-filter-tabs">
+                <button
+                  type="button"
+                  className={`dashboard-filter-tab ${projectFilter === 'ALL' ? 'active' : ''}`}
+                  onClick={() => setProjectFilter('ALL')}
+                >
+                  All <span className="badge">{projects.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-tab ${projectFilter === 'ACTIVE' ? 'active' : ''}`}
+                  onClick={() => setProjectFilter('ACTIVE')}
+                >
+                  Active <span className="badge">{activeProjects.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-tab ${projectFilter === 'COMPLETED' ? 'active' : ''}`}
+                  onClick={() => setProjectFilter('COMPLETED')}
+                >
+                  Completed <span className="badge">{completedProjects.length}</span>
+                </button>
+              </div>
+
+              <button
+                className="student-primary-button"
+                onClick={() => navigate('/projects?create=true')}
+              >
+                + New Project
+              </button>
+            </div>
           </div>
 
           {loadingProjects ? (
@@ -1454,9 +1490,22 @@ const StudentDashboard = () => {
                 <i className="fa fa-plus"></i> Start Your First Project
               </button>
             </div>
+          ) : displayedProjects.length === 0 ? (
+            <div className="student-empty-state">
+              <h3>No {projectFilter.toLowerCase()} projects</h3>
+              <p>You have no projects matching the {projectFilter.toLowerCase()} filter.</p>
+              <button
+                type="button"
+                className="student-primary-button"
+                onClick={() => setProjectFilter('ALL')}
+                style={{ marginTop: '10px' }}
+              >
+                Show All Projects
+              </button>
+            </div>
           ) : (
             <div className="student-projects-list">
-              {projects.map((project) => (
+              {displayedProjects.map((project) => (
                 <div
                   key={project.id}
                   className="student-project-card"
@@ -1464,18 +1513,19 @@ const StudentDashboard = () => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                     <h3 style={{ margin: 0 }}>{project.title}</h3>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       {project.createdById === user?.id && (
                         <span style={{ fontSize: '11px', fontWeight: 700, background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: '4px' }}>
                           Owner
                         </span>
                       )}
                       <span
-                        className={`student-skill-status ${
+                        className={`project-status-pill ${
                           project.status === 'COMPLETED' ? 'completed' : 'active'
                         }`}
                         style={{ fontSize: '11px', padding: '2px 8px' }}
                       >
+                        <span className={`status-dot ${project.status === 'COMPLETED' ? 'completed' : 'active'}`}></span>
                         {project.status === 'COMPLETED' ? 'Completed' : 'Active'}
                       </span>
                     </div>

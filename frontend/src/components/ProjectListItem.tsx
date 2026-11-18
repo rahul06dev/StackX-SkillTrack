@@ -10,6 +10,7 @@ interface Project {
   description: string;
   tasks: number;
   members: number;
+  status?: string;
 }
 
 interface ProjectListItemProps {
@@ -36,7 +37,20 @@ const ProjectListItem: React.FC<ProjectListItemProps> = ({ project, isGridItem =
 
         {/* Text Content */}
         <div className="flex-1">
-          <h3 className={`text-lg font-medium text-gray-800 ${isGridItem ? 'mb-2' : ''}`}>{project.title}</h3>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className={`text-lg font-medium text-gray-800`}>{project.title}</h3>
+            {project.status && (
+              <span
+                className={`project-status-pill ${
+                  project.status === 'COMPLETED' ? 'completed' : 'active'
+                }`}
+                style={{ fontSize: '10px', padding: '2px 8px' }}
+              >
+                <span className={`status-dot ${project.status === 'COMPLETED' ? 'completed' : 'active'}`}></span>
+                {project.status === 'COMPLETED' ? 'Completed' : 'Active'}
+              </span>
+            )}
+          </div>
           <p className={`text-sm text-gray-500 ${isGridItem ? 'line-clamp-3 mb-4' : 'line-clamp-2'}`}>{project.description}</p>
         </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import Sidebar from '../components/Sidebar';
@@ -12,6 +12,7 @@ interface Project {
   description: string;
   tasks: number;
   members: number;
+  status?: string;
 }
 
 import { API_BASE_URL } from '../config/api';
@@ -23,10 +24,20 @@ const ProjectsPage = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [projectFilter, setProjectFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [searchParams] = useSearchParams();
+
+  const activeCount = projects.filter((p) => p.status !== 'COMPLETED').length;
+  const completedCount = projects.filter((p) => p.status === 'COMPLETED').length;
+
+  const displayedProjects = useMemo(() => {
+    if (projectFilter === 'ACTIVE') return projects.filter((p) => p.status !== 'COMPLETED');
+    if (projectFilter === 'COMPLETED') return projects.filter((p) => p.status === 'COMPLETED');
+    return projects;
+  }, [projectFilter, projects]);
 
   const fetchProjects = async () => {
     try {
@@ -181,20 +192,43 @@ const ProjectsPage = () => {
 
         </div>
 
-        {/* Project Count */}
-        <div className="projects-summary">
-          <span>
-            {projects.length}{' '}
-            {projects.length === 1 ? 'Project' : 'Projects'}
-          </span>
+        {/* Project Filter Tabs & Summary */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', margin: '20px 0 16px' }}>
+          <div className="dashboard-filter-tabs">
+            <button
+              type="button"
+              className={`dashboard-filter-tab ${projectFilter === 'ALL' ? 'active' : ''}`}
+              onClick={() => setProjectFilter('ALL')}
+            >
+              All Projects <span className="badge">{projects.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`dashboard-filter-tab ${projectFilter === 'ACTIVE' ? 'active' : ''}`}
+              onClick={() => setProjectFilter('ACTIVE')}
+            >
+              Active <span className="badge">{activeCount}</span>
+            </button>
+            <button
+              type="button"
+              className={`dashboard-filter-tab ${projectFilter === 'COMPLETED' ? 'active' : ''}`}
+              onClick={() => setProjectFilter('COMPLETED')}
+            >
+              Completed <span className="badge">{completedCount}</span>
+            </button>
+          </div>
+
+          <div style={{ fontSize: '13px', color: '#64748b' }}>
+            Showing <strong>{displayedProjects.length}</strong> of <strong>{projects.length}</strong> projects
+          </div>
         </div>
 
         {/* Projects */}
         <div className="projects-grid">
 
-          {projects.length > 0 ? (
+          {displayedProjects.length > 0 ? (
 
-            projects.map((project) => (
+            displayedProjects.map((project) => (
               <ProjectListItem
                 key={project.id}
                 project={project}
