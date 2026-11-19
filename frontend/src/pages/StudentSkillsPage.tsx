@@ -792,7 +792,7 @@ const StudentSkillsPage = () => {
               className={`skill-filter-tab ${skillFilterTab === 'verified' ? 'active' : ''}`}
               onClick={() => setSkillFilterTab('verified')}
             >
-              <i className="fa fa-check-circle" style={{ color: '#10b981' }}></i> Verified Profile (Pₛ){' '}
+              <i className="fa fa-check-circle" style={{ color: '#10b981' }}></i> Verified Profile{' '}
               <span className="skill-filter-tab-count">{verifiedSkills.length}</span>
             </button>
             <button

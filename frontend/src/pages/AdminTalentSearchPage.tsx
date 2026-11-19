@@ -389,7 +389,7 @@ const AdminTalentSearchPage: React.FC = () => {
                       onChange={(e) => setMatchMode(e.target.value as any)}
                     >
                       <option value="ALL_DEMONSTRATED">Verified + Project Exposure (Standard)</option>
-                      <option value="VERIFIED_ONLY">Faculty-Verified Only (Paper Eq. 3-4)</option>
+                      <option value="VERIFIED_ONLY">Faculty-Verified Only</option>
                     </select>
                   </div>
 

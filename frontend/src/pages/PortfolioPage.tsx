@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { API_BASE_URL as API_BASE } from '../config/api';
@@ -109,6 +109,39 @@ const PortfolioPage = ({ isPublic = false }: PortfolioPageProps) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const isPublicView = isPublic || !!studentId;
+
+  // Curate high-impact, crisp portfolio sections
+  const topVerifiedSkills = useMemo(() => {
+    if (!data?.verifiedSkills) return [];
+    const levelScore = (level: string) => (level === 'ADVANCED' ? 3 : level === 'INTERMEDIATE' ? 2 : 1);
+    return [...data.verifiedSkills].sort((a, b) => {
+      const scoreA = levelScore(a.level) + (a.feedback ? 2 : 0) + (a.projects?.length || 0);
+      const scoreB = levelScore(b.level) + (b.feedback ? 2 : 0) + (b.projects?.length || 0);
+      return scoreB - scoreA;
+    });
+  }, [data?.verifiedSkills]);
+
+  const topProjectSkills = useMemo(() => {
+    if (!data?.projectSkills) return [];
+    return [...data.projectSkills]
+      .sort((a, b) => (b.projects?.length || 0) - (a.projects?.length || 0))
+      .slice(0, 10);
+  }, [data?.projectSkills]);
+
+  const topProjects = useMemo(() => {
+    if (!data?.projects) return [];
+    return [...data.projects]
+      .sort((a, b) => {
+        const statusScoreA = a.status === 'COMPLETED' ? 3 : 1;
+        const statusScoreB = b.status === 'COMPLETED' ? 3 : 1;
+        const supervisorScoreA = a.supervisor && a.supervisor !== 'Unassigned' ? 1 : 0;
+        const supervisorScoreB = b.supervisor && b.supervisor !== 'Unassigned' ? 1 : 0;
+        const scoreA = statusScoreA + supervisorScoreA + (a.skills?.length || 0) * 0.2;
+        const scoreB = statusScoreB + supervisorScoreB + (b.skills?.length || 0) * 0.2;
+        return scoreB - scoreA;
+      })
+      .slice(0, 4);
+  }, [data?.projects]);
 
   const fetchPortfolio = async () => {
     try {
@@ -502,33 +535,11 @@ const PortfolioPage = ({ isPublic = false }: PortfolioPageProps) => {
               </div>
             )}
 
-            {/* Certificate Verification Banner */}
-            {data.certificate && (
-              <div className="portfolio-certificate-banner">
-                <div className="cert-left">
-                  <div className="cert-seal">
-                    <i className="fa fa-award"></i>
-                  </div>
-                  <div className="cert-title-group">
-                    <h4>{data.certificate.institution}</h4>
-                    <p>Official Digital Skill Passport · Academic Competency Registry</p>
-                  </div>
-                </div>
-                <div className="cert-code-group">
-                  <span className="cert-code-label">Verification Hash & ID</span>
-                  <span className="cert-hash-val">{data.certificate.verificationCode}</span>
-                  <small style={{ display: 'block', color: '#047857', marginTop: '2px', fontSize: '10px' }}>
-                    {data.certificate.certificateId}
-                  </small>
-                </div>
-              </div>
-            )}
-
             {/* Summary Metrics */}
             <section className="portfolio-metrics-grid">
               <div className="portfolio-metric-box">
                 <span className="metric-number">{data.summary.totalVerifiedSkills}</span>
-                <span className="metric-label">Faculty Verified Skills (Eq. 3-4)</span>
+                <span className="metric-label">Faculty-Verified Skills</span>
               </div>
               <div className="portfolio-metric-box">
                 <span className="metric-number">{data.summary.totalProjects}</span>
@@ -544,20 +555,20 @@ const PortfolioPage = ({ isPublic = false }: PortfolioPageProps) => {
             <section className="portfolio-section">
               <div className="portfolio-section-title">
                 <i className="fa fa-check-circle" style={{ color: '#10b981' }}></i>
-                <h3>Faculty-Verified Competencies (Paper Eq. 3-4)</h3>
+                <h3>Faculty-Verified Competencies</h3>
               </div>
               <p className="portfolio-section-desc">
-                Competencies that have been evaluated, reviewed, and endorsed by supervising faculty mentors based on documented project deliverables.
+                Key competencies evaluated and endorsed by supervising faculty mentors based on documented project deliverables.
               </p>
 
-              {data.verifiedSkills.length === 0 ? (
+              {topVerifiedSkills.length === 0 ? (
                 <div className="portfolio-empty-hint">
                   <i className="fa fa-info-circle"></i>
                   <span>No faculty-verified competencies yet. Once your faculty reviews your project claims, approved skills will appear here.</span>
                 </div>
               ) : (
                 <div className="portfolio-verified-grid">
-                  {data.verifiedSkills.map((vs) => (
+                  {topVerifiedSkills.map((vs) => (
                     <div key={vs.id} className="portfolio-verified-card">
                       <div className="portfolio-verified-card-header">
                         <h4>{vs.name}</h4>
@@ -603,16 +614,16 @@ const PortfolioPage = ({ isPublic = false }: PortfolioPageProps) => {
                 <h3>Project-Supported Technical Skills</h3>
               </div>
               <p className="portfolio-section-desc">
-                Skills derived directly from team projects and technical tasks practiced throughout the academic curriculum.
+                Core technologies and tools demonstrated across academic project deliverables.
               </p>
 
-              {data.projectSkills.length === 0 ? (
+              {topProjectSkills.length === 0 ? (
                 <div className="portfolio-empty-hint">
                   <span>No project skills recorded yet.</span>
                 </div>
               ) : (
                 <div className="portfolio-skills-cloud">
-                  {data.projectSkills.map((ps) => (
+                  {topProjectSkills.map((ps) => (
                     <div key={ps.id} className="portfolio-skill-chip">
                       <strong>{ps.name}</strong>
                       <span className="chip-category">{ps.category || 'Technical'}</span>
@@ -627,14 +638,14 @@ const PortfolioPage = ({ isPublic = false }: PortfolioPageProps) => {
             <section className="portfolio-section">
               <div className="portfolio-section-title">
                 <i className="fa fa-tasks"></i>
-                <h3>Academic Project Portfolio</h3>
+                <h3>Featured Academic Projects</h3>
               </div>
               <p className="portfolio-section-desc">
-                Documented engineering projects completed with active Kanban tracking, faculty supervision, and team collaboration.
+                Key engineering projects completed with active Kanban tracking, faculty supervision, and verified competency applications.
               </p>
 
               <div className="portfolio-projects-list">
-                {data.projects.map((proj) => (
+                {topProjects.map((proj) => (
                   <div key={proj.id} className="portfolio-project-item">
                     <div className="portfolio-project-item-header">
                       <div>
@@ -672,7 +683,6 @@ const PortfolioPage = ({ isPublic = false }: PortfolioPageProps) => {
             {/* Footer */}
             <footer className="portfolio-doc-footer">
               <p>StackX SkillTrack — Certified Placement Readiness & Competency Verification Document</p>
-              <small>MIT Art, Design and Technology University, Pune · School of Computing</small>
             </footer>
           </div>
         ) : null}
