@@ -915,10 +915,10 @@ router.delete(
         });
       }
 
-      // Only allow deleting claims with PENDING review status (unless ADMIN)
-      if (userRole === 'STUDENT' && existing.verification !== 'PENDING') {
+      // Allow students to delete claims with PENDING or REJECTED (declined) status (unless ADMIN)
+      if (userRole === 'STUDENT' && !['PENDING', 'REJECTED'].includes(existing.verification)) {
         return res.status(400).json({
-          message: 'Only skill claims with PENDING review status can be deleted.',
+          message: 'Only pending or declined skill claims can be deleted.',
         });
       }
 
@@ -932,18 +932,25 @@ router.delete(
         }),
       ]);
 
+      const actionName = existing.verification === 'REJECTED' ? 'SKILL_CLAIM_DELETED' : 'SKILL_CLAIM_CANCELLED';
+      const actionDetail = existing.verification === 'REJECTED'
+        ? `Deleted declined claim for "${existing.skill.name}"`
+        : `Cancelled pending claim for "${existing.skill.name}"`;
+
       for (const ev of existing.evidence) {
         await logActivity({
           projectId: ev.projectId,
           userId,
           userName: existing.student.name || 'Student',
-          action: 'SKILL_CLAIM_CANCELLED',
-          details: `Cancelled pending claim for "${existing.skill.name}"`,
+          action: actionName,
+          details: actionDetail,
         });
       }
 
       return res.json({
-        message: 'Pending skill claim deleted successfully.',
+        message: existing.verification === 'REJECTED'
+          ? 'Declined skill claim deleted successfully.'
+          : 'Pending skill claim deleted successfully.',
       });
     } catch (error) {
       console.error('Error deleting skill claim:', error);

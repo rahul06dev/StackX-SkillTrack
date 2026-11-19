@@ -18,6 +18,7 @@ import AdminJobRolesPage from './pages/AdminJobRolesPage';
 import AdminTalentSearchPage from './pages/AdminTalentSearchPage';
 import PortfolioPage from './pages/PortfolioPage';
 import SettingsPage from './pages/SettingsPage';
+import StudentSkillsPage from './pages/StudentSkillsPage';
 
 const App = () => {
   return (
@@ -122,6 +123,24 @@ const App = () => {
           element={
             <ProtectedRoute allowedRoles={['STUDENT']}>
               <PortfolioPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/student/skills"
+          element={
+            <ProtectedRoute allowedRoles={['STUDENT']}>
+              <StudentSkillsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/skills"
+          element={
+            <ProtectedRoute allowedRoles={['STUDENT']}>
+              <StudentSkillsPage />
             </ProtectedRoute>
           }
         />

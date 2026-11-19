@@ -31,6 +31,7 @@ interface KanbanColumnProps {
     onTaskCreate: (columnId: string, newTask: Task) => void;
     onTaskSave: (updatedTask: Task) => void;
     onTaskDelete: (taskId: string) => void;
+    teamMembers?: Array<{ id: string; name: string; email: string; role?: string }>;
 }
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({
@@ -42,6 +43,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     inProgressColumnId,
     targetTaskId,
     readOnly = false,
+    teamMembers,
     onTaskAutoOpened,
     onColumnDelete,
     onTaskCreate,
@@ -74,12 +76,21 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     const handleAddTask = async () => {
         if (!newTaskTitle.trim()) return;
 
+        const storedUser = localStorage.getItem('user');
+        let currentUserName = '';
+        try {
+            currentUserName = storedUser ? JSON.parse(storedUser)?.name : '';
+        } catch {
+            currentUserName = '';
+        }
+
         const payload = {
             columnId,
             title: newTaskTitle.trim(),
             description: '',
             priority: 'medium',
             dueDate: null,
+            assignee: currentUserName || undefined,
         };
 
         try {
@@ -103,6 +114,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
             const createdTask = await res.json();
             const formattedTask: Task = {
                 ...createdTask,
+                assignee: createdTask.assignee || currentUserName || undefined,
                 dueDate: createdTask.dueDate ? new Date(createdTask.dueDate) : null,
                 commentsCount: 0,
                 attachmentsCount: 0,
@@ -253,6 +265,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                     completedColumnId={completedColumnId}
                     inProgressColumnId={inProgressColumnId}
                     isOpen={isModalOpen}
+                    teamMembers={teamMembers}
                     onClose={() => {
                         setIsModalOpen(false);
                         setSelectedTask(null);

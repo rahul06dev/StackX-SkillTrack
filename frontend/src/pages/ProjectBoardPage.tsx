@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { DragDropContext, type DropResult } from '@hello-pangea/dnd';
 import Sidebar from '../components/Sidebar';
@@ -126,6 +126,24 @@ const ProjectBoardPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [invitationActionLoading, setInvitationActionLoading] = useState(false);
   const [invitationFeedback, setInvitationFeedback] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const showToast = useCallback((type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev));
+    }, 4500);
+  }, []);
+
+  const completedColumnId = useMemo(
+    () => columns.find((c) => c.title === 'Completed')?.id,
+    [columns]
+  );
+
+  const inProgressColumnId = useMemo(
+    () => columns.find((c) => c.title === 'In Progress')?.id,
+    [columns]
+  );
 
   const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -172,12 +190,12 @@ const ProjectBoardPage = () => {
       }
 
       if (destCol.title === 'Completed' && userRole === 'STUDENT') {
-        alert('Permission Denied: Only Faculty or Admin can mark a task as Completed.');
+        showToast('error', 'Permission Denied: Only Faculty or Admin can mark a task as Completed.');
         return;
       }
 
       if (destCol.title === 'Completed' && sourceCol.title !== 'In Review') {
-        alert('Workflow Notice: A task must be moved to "In Review" before it can be Completed.');
+        showToast('error', 'Workflow Notice: A task must be moved to "In Review" before it can be Completed.');
         return;
       }
 
@@ -232,16 +250,18 @@ const ProjectBoardPage = () => {
           throw new Error(errorData.message || 'Failed to move task.');
         }
 
-        if (userRole === 'STUDENT' && destCol.title === 'In Review') {
-          alert('Task submitted for Faculty Review! Your supervisor will be notified.');
+        if (destCol.title === 'In Review') {
+          showToast('success', 'Task submitted for Faculty Review! Your supervisor will be notified.');
+        } else if (destCol.title === 'Completed') {
+          showToast('success', 'Task marked as Completed! Great progress.');
         }
       } catch (err) {
         console.error('Task move error:', err);
         setColumns(previousColumns); // Rollback
-        alert(err instanceof Error ? err.message : 'Could not move task. Reverting position.');
+        showToast('error', err instanceof Error ? err.message : 'Could not move task. Reverting position.');
       }
     },
-    [columns]
+    [columns, showToast]
   );
 
   // --- TASK STATE HANDLERS ---
@@ -255,7 +275,8 @@ const ProjectBoardPage = () => {
     );
   }, []);
 
-  const handleTaskSave = useCallback((updatedTask: Task) => {
+  const handleTaskSave = useCallback(async (updatedTask: Task) => {
+    // 1. Optimistic update
     setColumns((prev) =>
       prev.map((col) => {
         const filtered = (col.tasks || []).filter((t) => t.id !== updatedTask.id);
@@ -265,16 +286,76 @@ const ProjectBoardPage = () => {
         return { ...col, tasks: filtered };
       })
     );
-  }, []);
 
-  const handleTaskDelete = useCallback((taskId: string) => {
-    setColumns((prev) =>
-      prev.map((col) => ({
-        ...col,
-        tasks: (col.tasks || []).filter((t) => t.id !== taskId),
-      }))
-    );
-  }, []);
+    // 2. Persist to API
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${updatedTask.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: updatedTask.title,
+          description: updatedTask.description,
+          priority: updatedTask.priority,
+          dueDate: updatedTask.dueDate ? updatedTask.dueDate.toISOString() : null,
+          columnId: updatedTask.columnId,
+          assignee: updatedTask.assignee,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || 'Failed to update task.');
+      }
+
+      const savedTask = await res.json();
+      if (savedTask.columnId === completedColumnId) {
+        showToast('success', 'Task approved and marked as Completed!');
+      }
+    } catch (err) {
+      console.error('Error saving task update:', err);
+      showToast('error', err instanceof Error ? err.message : 'Failed to save task update.');
+    }
+  }, [completedColumnId, showToast]);
+
+  const teamMembers = useMemo(() => {
+    const list: Array<{ id: string; name: string; email: string; role?: string }> = [];
+    if (project.students) list.push(...project.students);
+    if (project.faculty) list.push(...project.faculty);
+    if (project.admins) list.push(...project.admins);
+    return list;
+  }, [project.students, project.faculty, project.admins]);
+
+  const handleTaskDelete = useCallback(async (taskId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || 'Failed to delete task.');
+        }
+      }
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          tasks: (col.tasks || []).filter((t) => t.id !== taskId),
+        }))
+      );
+      showToast('success', 'Task deleted successfully.');
+    } catch (err) {
+      console.error('Error deleting task:', err);
+      showToast('error', err instanceof Error ? err.message : 'Failed to delete task.');
+    }
+  }, [showToast]);
 
   // --- DELETE COLUMN ---
   const handleColumnDelete = useCallback(async (columnId: string) => {
@@ -592,13 +673,6 @@ const ProjectBoardPage = () => {
     [parsedProjectId, columns]
   );
 
-  const completedColumnId = columns.find(
-    column => column.title === 'Completed'
-  )?.id;
-
-  const inProgressColumnId = columns.find(
-    column => column.title === 'In Progress'
-  )?.id;
 
   const handleTaskAutoOpened = useCallback(() => {
     navigate(`/projects/${parsedProjectId}`, {
@@ -1203,6 +1277,7 @@ const ProjectBoardPage = () => {
                   targetTaskId={targetTaskId}
                   onTaskAutoOpened={handleTaskAutoOpened}
                   readOnly={Boolean(project.isPendingInvitation)}
+                  teamMembers={teamMembers}
                 />
               ))
             ) : (
@@ -1250,6 +1325,25 @@ const ProjectBoardPage = () => {
           isOpen={isActivityModalOpen}
           onClose={() => setIsActivityModalOpen(false)}
         />
+      )}
+
+      {/* In-Website Toast Notifications */}
+      {toast && (
+        <div
+          className={toast.type === 'success' ? 'kanban-success-toast' : 'kanban-error-toast'}
+          role="status"
+          aria-live="polite"
+        >
+          <i className={toast.type === 'success' ? 'fa fa-check-circle' : 'fa fa-exclamation-circle'}></i>
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            aria-label="Dismiss notification"
+          >
+            <i className="fa fa-times"></i>
+          </button>
+        </div>
       )}
 
     </div>

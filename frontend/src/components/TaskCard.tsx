@@ -108,14 +108,14 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
                 <div className="flex gap-3">
 
-                    {/* Assignee Initial */}
-                    <div className="flex items-center gap-1">
-                        <i className="fa fa-user-circle"></i>
-
-                        <span>
-                            {task.assignee
-                                ? task.assignee.substring(0, 1)
-                                : '?'}
+                    {/* Assignee Badge */}
+                    <div
+                        className="flex items-center gap-1 text-gray-700 bg-gray-100 hover:bg-gray-200 px-1.5 py-0.5 rounded text-[11px] font-medium max-w-[110px]"
+                        title={task.assignee ? `Assigned to: ${task.assignee}` : 'Unassigned'}
+                    >
+                        <i className="fa fa-user-circle text-gray-500 text-[10px] flex-shrink-0"></i>
+                        <span className="truncate">
+                            {task.assignee || 'Unassigned'}
                         </span>
                     </div>
 

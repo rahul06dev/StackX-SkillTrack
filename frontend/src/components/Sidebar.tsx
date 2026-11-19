@@ -182,14 +182,25 @@ const Sidebar: React.FC<SidebarProps> = ({
               )}
 
               {isStudent && (
-                <Link
-                  to="/student/portfolio"
-                  className={getNavClass('portfolio')}
-                  onClick={() => setIsMobileOpen(false)}
-                >
-                  <i className="fa fa-id-badge"></i>
-                  <span>Portfolio</span>
-                </Link>
+                <>
+                  <Link
+                    to="/student/skills"
+                    className={getNavClass('skills')}
+                    onClick={() => setIsMobileOpen(false)}
+                  >
+                    <i className="fa fa-award"></i>
+                    <span>Your Skills</span>
+                  </Link>
+
+                  <Link
+                    to="/student/portfolio"
+                    className={getNavClass('portfolio')}
+                    onClick={() => setIsMobileOpen(false)}
+                  >
+                    <i className="fa fa-id-badge"></i>
+                    <span>Portfolio</span>
+                  </Link>
+                </>
               )}
 
               <Link

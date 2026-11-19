@@ -1,6 +1,5 @@
 import {
   useState,
-  useMemo,
   useCallback,
   useRef,
   useEffect,
@@ -46,6 +45,7 @@ interface TaskDetailModalProps {
   onClose: () => void;
   onTaskDelete: (taskId: string) => void;
   onTaskSave: (updatedTask: Task) => void;
+  teamMembers?: Array<{ id: string; name: string; email: string; role?: string }>;
 }
 // --- END INTERFACES ---
 
@@ -116,6 +116,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   onClose,
   onTaskDelete,
   onTaskSave,
+  teamMembers = [],
 }) => {
   const currentUser = getCurrentUser();
   const currentUserRole = getCurrentUserRole();
@@ -136,7 +137,13 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   >(task.priority);
 
   const [localAssignee, setLocalAssignee] = useState(
-    task.assignee || 'Select assignee'
+    task.assignee && task.assignee !== 'Unassigned'
+      ? task.assignee
+      : teamMembers?.[0]?.name || ''
+  );
+
+  const [localDueDate, setLocalDueDate] = useState<Date | null>(
+    task.dueDate ? new Date(task.dueDate) : null
   );
 
   // --- TAB / ATTACHMENT / COMMENT STATES ---
@@ -150,11 +157,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   const [comments, setComments] = useState<Comment[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // --- CALENDAR STATE ---
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [selectedDay, setSelectedDay] = useState(0);
-  const [currentDate, setCurrentDate] = useState(new Date());
+
 
   // --- EFFECT TO INITIALIZE STATE WHEN TASK / MODAL CHANGES ---
   useEffect(() => {
@@ -163,27 +168,18 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setLocalTitle(task.title);
     setLocalDescription(task.description);
     setLocalPriority(task.priority);
-    setLocalAssignee(
-      task.assignee || 'Select assignee'
-    );
+    const initialAssignee =
+      task.assignee && task.assignee !== 'Unassigned'
+        ? task.assignee
+        : teamMembers?.[0]?.name || '';
+    setLocalAssignee(initialAssignee);
 
     const dueDate = task.dueDate;
 
     if (dueDate) {
-      const dateObj = new Date(dueDate);
-
-      setSelectedDay(dateObj.getDate());
-
-      setCurrentDate(
-        new Date(
-          dateObj.getFullYear(),
-          dateObj.getMonth(),
-          1
-        )
-      );
+      setLocalDueDate(new Date(dueDate));
     } else {
-      setSelectedDay(0);
-      setCurrentDate(new Date());
+      setLocalDueDate(null);
     }
 
     const fetchTaskData = async () => {
@@ -253,20 +249,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   // --- DELETE TASK ---
   const handleDeleteTask = useCallback(() => {
-    const isConfirmed = window.confirm(
-      `Are you sure you want to permanently delete the task: "${localTitle}"?`
-    );
+    setShowDeleteConfirm(true);
+  }, []);
 
-    if (isConfirmed) {
-      onTaskDelete(task.id);
-      onClose();
-    }
-  }, [
-    localTitle,
-    task.id,
-    onClose,
-    onTaskDelete,
-  ]);
+  const handleConfirmDelete = useCallback(() => {
+    setShowDeleteConfirm(false);
+    onTaskDelete(task.id);
+    onClose();
+  }, [task.id, onClose, onTaskDelete]);
 
   // --- ADD COMMENT ---
   const handleCommentAdded = useCallback(
@@ -334,23 +324,18 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   // --- SAVE TASK CHANGES ---
   const handleSaveChanges = useCallback(() => {
+    const finalAssignee =
+      localAssignee && localAssignee !== 'Unassigned' && localAssignee !== 'Select assignee'
+        ? localAssignee
+        : teamMembers?.[0]?.name || task.assignee || '';
+
     const updatedTask: Task = {
       ...task,
       title: localTitle,
       description: localDescription,
       priority: localPriority,
-      assignee:
-        localAssignee === 'Select assignee'
-          ? undefined
-          : localAssignee,
-      dueDate:
-        selectedDay === 0
-          ? null
-          : new Date(
-            currentDate.getFullYear(),
-            currentDate.getMonth(),
-            selectedDay
-          ),
+      assignee: finalAssignee,
+      dueDate: localDueDate,
     };
 
     onTaskSave(updatedTask);
@@ -361,8 +346,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     localDescription,
     localPriority,
     localAssignee,
-    selectedDay,
-    currentDate,
+    localDueDate,
+    teamMembers,
     onClose,
     onTaskSave,
   ]);
@@ -402,107 +387,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     onClose,
     onTaskSave,
   ]);
-
-  // --- CALENDAR HELPERS ---
-  const calendarHeaders = [
-    'Su',
-    'Mo',
-    'Tu',
-    'We',
-    'Th',
-    'Fr',
-    'Sa',
-  ];
-
-  const handleDateSelect = (day: number) => {
-    setSelectedDay(day);
-    setIsCalendarOpen(false);
-  };
-
-  const changeMonth = (delta: number) => {
-    setCurrentDate((prevDate) =>
-      new Date(
-        prevDate.getFullYear(),
-        prevDate.getMonth() + delta,
-        1
-      )
-    );
-  };
-
-  const getFormattedDate = (day: number) => {
-    if (day === 0) return 'Select date';
-
-    const suffix =
-      day === 1 ||
-        day === 21 ||
-        day === 31
-        ? 'st'
-        : day === 2 ||
-          day === 22
-          ? 'nd'
-          : day === 3 ||
-            day === 23
-            ? 'rd'
-            : 'th';
-
-    return `${currentDate.toLocaleString(
-      'default',
-      { month: 'long' }
-    )} ${day}${suffix}, ${currentDate.getFullYear()}`;
-  };
-
-  const calendarDays = useMemo(() => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-
-    const firstDayOfMonth = new Date(
-      year,
-      month,
-      1
-    ).getDay();
-
-    const daysInMonth = new Date(
-      year,
-      month + 1,
-      0
-    ).getDate();
-
-    const days = [];
-
-    let day = 1;
-
-    for (let i = 0; i < 42; i++) {
-      if (i < firstDayOfMonth) {
-        days.push({
-          day:
-            new Date(
-              year,
-              month,
-              0
-            ).getDate() -
-            firstDayOfMonth +
-            i +
-            1,
-          isPrev: true,
-        });
-      } else if (day <= daysInMonth) {
-        days.push({
-          day: day++,
-          isPrev: false,
-          isToday:
-            day - 1 === new Date().getDate() &&
-            month === new Date().getMonth(),
-        });
-      } else {
-        days.push({
-          day: day++ - daysInMonth,
-          isPrev: true,
-        });
-      }
-    }
-
-    return days;
-  }, [currentDate]);
 
   // --- ATTACHMENTS ---
   const triggerFileInput = useCallback(
@@ -774,31 +658,21 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   </label>
 
                   <select
-                    className="select-field w-full px-3 py-2 rounded-lg border"
+                    className="select-field w-full px-3 py-2 rounded-lg border text-gray-700"
                     value={localAssignee}
-                    onChange={(e) =>
-                      setLocalAssignee(
-                        e.target.value
-                      )
-                    }
+                    onChange={(e) => setLocalAssignee(e.target.value)}
                   >
-                    <option
-                      value="Select assignee"
-                      disabled
-                    >
-                      Select assignee
-                    </option>
-
-                    {/* Temporary existing options.
-                        These will be replaced with
-                        project-based users in Step 3. */}
-                    <option value="Soumyaranjan Parida">
-                      Soumyaranjan Parida
-                    </option>
-
-                    <option value="Admin">
-                      Admin
-                    </option>
+                    {teamMembers && teamMembers.length > 0 ? (
+                      teamMembers.map((member) => (
+                        <option key={member.id} value={member.name}>
+                          {member.name} {member.role ? `(${member.role})` : ''}
+                        </option>
+                      ))
+                    ) : (
+                      task.assignee && (
+                        <option value={task.assignee}>{task.assignee}</option>
+                      )
+                    )}
                   </select>
                 </div>
 
@@ -838,112 +712,41 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
               {/* Due Date */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-
-                <div className="input-group relative">
-
-                  <label className="input-label text-sm font-semibold mb-2 block">
-                    Due Date
-                  </label>
-
-                  <div
-                    className="due-date-button select-field flex items-center px-3 py-2 rounded-lg border cursor-pointer"
-                    onClick={() =>
-                      setIsCalendarOpen(
-                        !isCalendarOpen
-                      )
-                    }
-                  >
-                    <i className="fa fa-calendar-alt text-gray-500 mr-2"></i>
-
-                    <span className="text-gray-700">
-                      {getFormattedDate(
-                        selectedDay
-                      )}
-                    </span>
+                <div className="input-group">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="input-label text-sm font-semibold block">
+                      Due Date
+                    </label>
+                    {localDueDate && (
+                      <button
+                        type="button"
+                        onClick={() => setLocalDueDate(null)}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium cursor-pointer"
+                        title="Clear deadline"
+                      >
+                        Clear date
+                      </button>
+                    )}
                   </div>
 
-                  {isCalendarOpen && (
-                    <div className="calendar-popup calendar-popup-above absolute mt-2 p-4 rounded-xl shadow-lg">
-
-                      <div className="calendar-header flex justify-between items-center mb-4">
-
-                        <button
-                          className="calendar-arrow"
-                          onClick={() =>
-                            changeMonth(-1)
-                          }
-                        >
-                          <i className="fa fa-chevron-left"></i>
-                        </button>
-
-                        <span className="font-semibold text-gray-800">
-                          {currentDate.toLocaleString(
-                            'default',
-                            {
-                              month: 'long',
-                              year: 'numeric',
-                            }
-                          )}
-                        </span>
-
-                        <button
-                          className="calendar-arrow"
-                          onClick={() =>
-                            changeMonth(1)
-                          }
-                        >
-                          <i className="fa fa-chevron-right"></i>
-                        </button>
-
-                      </div>
-
-                      <div className="calendar-grid">
-
-                        {calendarHeaders.map(
-                          (day) => (
-                            <span
-                              key={day}
-                              className="day-header text-xs font-medium text-gray-500"
-                            >
-                              {day}
-                            </span>
-                          )
-                        )}
-
-                        {calendarDays.map(
-                          (day, index) => (
-                            <button
-                              key={index}
-                              className={`day-cell text-sm font-medium ${day.isPrev
-                                  ? 'text-gray-400'
-                                  : 'text-gray-700'
-                                } ${day.day ===
-                                  selectedDay &&
-                                  !day.isPrev
-                                  ? 'day-selected'
-                                  : ''
-                                } ${day.isToday
-                                  ? 'day-today'
-                                  : ''
-                                }`}
-                              onClick={() =>
-                                handleDateSelect(
-                                  day.day
-                                )
-                              }
-                              disabled={day.isPrev}
-                            >
-                              {day.day}
-                            </button>
-                          )
-                        )}
-
-                      </div>
-                    </div>
-                  )}
-
+                  <input
+                    type="date"
+                    className="select-field w-full px-3 py-2 rounded-lg border text-gray-700 font-medium"
+                    value={
+                      localDueDate
+                        ? `${localDueDate.getFullYear()}-${String(localDueDate.getMonth() + 1).padStart(2, '0')}-${String(localDueDate.getDate()).padStart(2, '0')}`
+                        : ''
+                    }
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setLocalDueDate(null);
+                      } else {
+                        const [y, m, d] = e.target.value.split('-').map(Number);
+                        setLocalDueDate(new Date(y, m - 1, d, 12, 0, 0));
+                      }
+                    }}
+                  />
                 </div>
-
               </div>
             </div>
           )}
@@ -1020,16 +823,55 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             {/* Normal Save */}
             <button
               type="button"
-              className="save-changes-button px-6 py-2 rounded-lg font-semibold text-white transition"
-              onClick={
-                handleSaveChanges
-              }
+              className="save-changes-button flex items-center gap-2 px-6 py-2.5 rounded-lg font-semibold text-white transition"
+              onClick={handleSaveChanges}
             >
-              Save Changes
+              <i className="fa fa-save text-sm opacity-90"></i>
+              <span>Save Changes</span>
             </button>
           </div>
 
         </div>
+
+        {/* In-Website Delete Task Confirmation Dialog */}
+        {showDeleteConfirm && (
+          <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteConfirm(false);
+            }}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4 text-xl">
+                <i className="fa fa-trash-alt"></i>
+              </div>
+              <h3 className="text-center font-bold text-gray-900 text-lg mb-2">Delete Task?</h3>
+              <p className="text-center text-sm text-gray-600 mb-6 leading-relaxed">
+                Are you sure you want to permanently delete <strong>&ldquo;{localTitle}&rdquo;</strong>? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  className="flex-1 px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition shadow-sm"
+                  onClick={handleConfirmDelete}
+                >
+                  Yes, Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,8 @@ import {
     type AuthenticatedRequest,
     authorizeRoles,
 } from '../middleware/authMiddleware.js';
+import { logActivity } from '../services/activityService.js';
+import { parseTaskDescription, formatTaskDescription } from '../utils/taskUtils.js';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -196,14 +198,18 @@ router.get(
                 },
             });
 
-            const formattedTasks = tasks.map((task) => ({
-                ...task,
-                assignee: 'Placeholder User',
-                commentsCount: 0,
-                dueDate: formatDateToISO(
-                    task.dueDate
-                ),
-            }));
+            const formattedTasks = tasks.map((task) => {
+                const parsed = parseTaskDescription(task.description);
+                return {
+                    ...task,
+                    description: parsed.description,
+                    assignee: parsed.assignee || 'Team Member',
+                    commentsCount: 0,
+                    dueDate: formatDateToISO(
+                        task.dueDate
+                    ),
+                };
+            });
 
             res.json(formattedTasks);
         } catch (error) {
@@ -236,6 +242,7 @@ router.post(
             description,
             priority,
             dueDate,
+            assignee,
         } = req.body;
 
         if (!columnId || !title || !priority) {
@@ -276,11 +283,25 @@ router.post(
                 });
             }
 
+            let taskAssignee = assignee;
+            if (!taskAssignee && req.user?.id) {
+                const creator = await prisma.user.findUnique({
+                    where: { id: req.user.id },
+                    select: { name: true },
+                });
+                taskAssignee = creator?.name || 'Task Creator';
+            }
+
+            const finalDescription = formatTaskDescription(
+                description,
+                taskAssignee
+            );
+
             const newTask = await prisma.task.create({
                 data: {
                     columnId,
                     title,
-                    description,
+                    description: finalDescription,
                     priority,
                     dueDate: dueDate
                         ? new Date(dueDate)
@@ -290,7 +311,8 @@ router.post(
 
             res.status(201).json({
                 ...newTask,
-                assignee: 'Placeholder User',
+                description: description || '',
+                assignee: taskAssignee || 'Team Member',
                 commentsCount: 0,
             });
         } catch (error) {
@@ -439,6 +461,7 @@ const updateTaskHandler = async (
             priority,
             dueDate,
             columnId,
+            assignee,
         } = req.body;
 
         try {
@@ -565,6 +588,14 @@ const updateTaskHandler = async (
             // UPDATE TASK
             // ==========================================
 
+            const currentParsed = parseTaskDescription(existingTask.description);
+            const resolvedAssignee = assignee !== undefined ? assignee : currentParsed.assignee;
+            const resolvedDescription = description !== undefined ? description : currentParsed.description;
+
+            const finalDescription = (description !== undefined || assignee !== undefined)
+                ? formatTaskDescription(resolvedDescription, resolvedAssignee)
+                : undefined;
+
             const updatedTask =
                 await prisma.task.update({
                     where: {
@@ -576,9 +607,8 @@ const updateTaskHandler = async (
                             title,
                         }),
 
-                        ...(description !==
-                            undefined && {
-                            description,
+                        ...(finalDescription !== undefined && {
+                            description: finalDescription,
                         }),
 
                         ...(priority !==
@@ -604,7 +634,8 @@ const updateTaskHandler = async (
 
             res.json({
                 ...updatedTask,
-                assignee: 'Placeholder User',
+                description: resolvedDescription,
+                assignee: resolvedAssignee || 'Team Member',
                 commentsCount: 0,
             });
         } catch (error) {
@@ -621,6 +652,119 @@ const updateTaskHandler = async (
         }
     };
 
+// ==========================================
+// PATCH REORDER / MOVE TASK
+// PATCH /api/tasks/reorder
+// ==========================================
+const reorderTaskHandler = async (
+    req: AuthenticatedRequest,
+    res: any
+) => {
+    const { taskId, targetColumnId, newIndex } = req.body;
+
+    if (!taskId || !targetColumnId) {
+        return res.status(400).json({
+            message: 'taskId and targetColumnId are required.',
+        });
+    }
+
+    try {
+        const task = await getTaskWithProject(taskId);
+
+        if (!task) {
+            return res.status(404).json({
+                message: 'Task not found.',
+            });
+        }
+
+        const projectId = task.column.projectId;
+        const hasAccess = await userHasProjectAccess(projectId, req);
+
+        if (hasAccess === null) {
+            return res.status(404).json({
+                message: 'Project not found.',
+            });
+        }
+
+        if (!hasAccess) {
+            return res.status(403).json({
+                message: 'You do not have access to this project.',
+            });
+        }
+
+        const targetColumn = await prisma.column.findUnique({
+            where: { id: targetColumnId },
+            select: { id: true, title: true, projectId: true },
+        });
+
+        if (!targetColumn) {
+            return res.status(404).json({
+                message: 'Target column not found.',
+            });
+        }
+
+        if (targetColumn.projectId !== projectId) {
+            return res.status(403).json({
+                message: 'You cannot move a task to another project.',
+            });
+        }
+
+        // Workflow restriction: Students cannot move tasks to Completed
+        if (targetColumn.title === 'Completed') {
+            if (req.user?.role === 'STUDENT') {
+                return res.status(403).json({
+                    message: 'Only Faculty or Admin can mark a task as Completed.',
+                });
+            }
+            if (task.column.title !== 'In Review') {
+                return res.status(403).json({
+                    message: 'A task must be moved to In Review before it can be Completed.',
+                });
+            }
+        }
+
+        const isColumnChanged = task.columnId !== targetColumnId;
+
+        const updatedTask = await prisma.task.update({
+            where: { id: taskId },
+            data: {
+                columnId: targetColumnId,
+                ...(typeof newIndex === 'number' && { order: newIndex }),
+            },
+        });
+
+        if (isColumnChanged) {
+            const actor = await prisma.user.findUnique({
+                where: { id: req.user!.id },
+                select: { name: true },
+            });
+
+            await logActivity({
+                projectId,
+                userId: req.user!.id,
+                userName: actor?.name || 'User',
+                action: 'TASK_MOVED',
+                details: `Moved task "${task.title}" from "${task.column.title}" to "${targetColumn.title}"`,
+            });
+        }
+
+        const parsed = parseTaskDescription(task.description);
+        return res.json({
+            ...updatedTask,
+            description: parsed.description,
+            assignee: parsed.assignee || 'Team Member',
+            commentsCount: 0,
+        });
+    } catch (error) {
+        console.error('❌ Error reordering task:', error);
+        return res.status(500).json({
+            message: 'Failed to reorder task',
+            error,
+        });
+    }
+};
+
+router.patch('/reorder', authenticateUser, reorderTaskHandler);
 router.put('/:id', authenticateUser, updateTaskHandler);
 router.patch('/:id', authenticateUser, updateTaskHandler);
 

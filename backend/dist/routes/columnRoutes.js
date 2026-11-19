@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateUser, } from '../middleware/authMiddleware.js';
+import { parseTaskDescription } from '../utils/taskUtils.js';
 const prisma = new PrismaClient();
 const router = Router();
 // ==========================================
@@ -125,23 +126,41 @@ router.get('/', authenticateUser, async (req, res) => {
                 order: 'asc',
             },
         });
+        const project = await prisma.project.findUnique({
+            where: { id: projectId },
+            include: {
+                createdBy: { select: { name: true } },
+                students: {
+                    include: {
+                        student: { select: { name: true } },
+                    },
+                },
+            },
+        });
+        const defaultAssignee = project?.createdBy?.name ||
+            project?.students?.[0]?.student?.name ||
+            'Team Member';
         const formattedColumns = columns.map(col => ({
             id: col.id,
             title: col.title,
             projectId: col.projectId,
             colorClass: col.colorClass,
             order: col.order,
-            tasks: col.tasks.map(t => ({
-                id: t.id,
-                columnId: t.columnId,
-                title: t.title,
-                description: t.description,
-                priority: t.priority,
-                order: t.order,
-                dueDate: t.dueDate ? t.dueDate.toISOString() : null,
-                commentsCount: t._count.comments,
-                attachmentsCount: t._count.attachments,
-            })),
+            tasks: col.tasks.map(t => {
+                const parsed = parseTaskDescription(t.description, defaultAssignee);
+                return {
+                    id: t.id,
+                    columnId: t.columnId,
+                    title: t.title,
+                    description: parsed.description,
+                    assignee: parsed.assignee || defaultAssignee,
+                    priority: t.priority,
+                    order: t.order,
+                    dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+                    commentsCount: t._count.comments,
+                    attachmentsCount: t._count.attachments,
+                };
+            }),
         }));
         res.json(formattedColumns);
     }
