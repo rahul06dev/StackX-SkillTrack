@@ -136,7 +136,61 @@ const AdminTalentSearchPage: React.FC = () => {
   const [error, setError] = useState('');
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
 
+  // Skill selection helpers & filters
+  const [skillSearchQuery, setSkillSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
   const token = localStorage.getItem('token');
+
+  // Helper for student initials
+  const getInitials = (name: string | null) => {
+    if (!name) return 'ST';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  // Helper for dynamic avatar gradient
+  const getAvatarGradient = (name: string | null) => {
+    const gradients = [
+      'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+      'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+      'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+      'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+      'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+    ];
+    if (!name) return gradients[0];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return gradients[Math.abs(hash) % gradients.length];
+  };
+
+  // Filter available skills based on search term and category
+  const filteredSkills = availableSkills.filter((s) => {
+    const matchesSearch = s.name.toLowerCase().includes(skillSearchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'All' || s.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Extract unique categories from skills
+  const categories = ['All', ...Array.from(new Set(availableSkills.map((s) => s.category).filter(Boolean))) as string[]];
+
+  // Get currently selected role object for live preview
+  const selectedRole = roles.find((r) => r.id === selectedRoleId);
+
+  const handleResetFilters = () => {
+    setSelectedRoleId('');
+    setSelectedSkillIds([]);
+    setMatchMode('ALL_DEMONSTRATED');
+    setMinMatch('0');
+    setSearchQuery('');
+    setDepartmentFilter('');
+    setGradYearFilter('');
+    setResults(null);
+    setError('');
+    setExpandedStudent(null);
+  };
 
   // Fetch initial Roles and Catalogue Skills
   useEffect(() => {
@@ -256,10 +310,12 @@ const AdminTalentSearchPage: React.FC = () => {
         {/* Header */}
         <header className="admin-header">
           <div>
-            <span className="talent-eyebrow">INSTITUTIONAL PLACEMENT INTELLIGENCE</span>
+            <span className="talent-eyebrow">
+              <i className="fa fa-crosshairs"></i> INSTITUTIONAL PLACEMENT INTELLIGENCE
+            </span>
             <h1>Talent Search & Skill Analytics</h1>
             <p>
-              Match student competencies against industry roles, verify faculty-backed skills, and analyze institutional skill gaps.
+              Match student competencies against industry roles, evaluate faculty-verified skills, and identify curriculum skill gaps.
             </p>
           </div>
         </header>
@@ -294,154 +350,241 @@ const AdminTalentSearchPage: React.FC = () => {
            ───────────────────────────────────────────────────────────── */}
         {activeTab === 'search' && (
           <>
-            <section className="admin-section talent-search-panel">
-              <div className="admin-section-header">
+            <section className="talent-search-panel">
+              <div className="admin-section-header" style={{ marginBottom: '16px' }}>
                 <div>
-                  <h2>Search & Rank Candidates</h2>
-                  <p>Configure target competencies, verification mode, and student filters.</p>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
+                    Search & Rank Candidates
+                  </h2>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                    Configure target competencies, verification modes, and candidate filters to find high-fit students.
+                  </p>
                 </div>
               </div>
 
               <form className="talent-search-form" onSubmit={handleSearch}>
-                {/* Search Target Mode Selector */}
-                <div style={{ display: 'flex', gap: '20px', marginBottom: '16px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                    <input
-                      type="radio"
-                      name="targetType"
-                      checked={searchTargetType === 'role'}
-                      onChange={() => setSearchTargetType('role')}
-                    />
-                    Search by Industry Job Role
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                    <input
-                      type="radio"
-                      name="targetType"
-                      checked={searchTargetType === 'skills'}
-                      onChange={() => setSearchTargetType('skills')}
-                    />
-                    Search by Specific Competencies
-                  </label>
+                {/* Search Target Mode Selector (Modern Segmented Cards) */}
+                <div className="talent-mode-switcher">
+                  <div
+                    className={`talent-mode-card ${searchTargetType === 'role' ? 'selected' : ''}`}
+                    onClick={() => setSearchTargetType('role')}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="talent-mode-icon">
+                      <i className="fa fa-briefcase"></i>
+                    </div>
+                    <div className="talent-mode-text">
+                      <h4>Search by Industry Job Role</h4>
+                      <p>Match against standardized profiles like Full Stack Developer, ML Engineer, etc.</p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`talent-mode-card ${searchTargetType === 'skills' ? 'selected' : ''}`}
+                    onClick={() => setSearchTargetType('skills')}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="talent-mode-icon">
+                      <i className="fa fa-bullseye"></i>
+                    </div>
+                    <div className="talent-mode-text">
+                      <h4>Search by Specific Competencies</h4>
+                      <p>Pick custom combinations of languages, frameworks, or database skills.</p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Primary Target Selection */}
                 {searchTargetType === 'role' ? (
                   <div className="talent-role-field">
-                    <label htmlFor="talent-job-role">Target Job Role *</label>
+                    <label className="talent-field-label" htmlFor="talent-job-role">
+                      <span>Target Job Role *</span>
+                      {selectedRole && (
+                        <span style={{ color: '#4f46e5', textTransform: 'none', fontWeight: 600 }}>
+                          {selectedRole.requiredSkills.length} required competencies
+                        </span>
+                      )}
+                    </label>
                     <select
                       id="talent-job-role"
+                      className="talent-select"
                       value={selectedRoleId}
                       onChange={(e) => setSelectedRoleId(e.target.value)}
                       disabled={loadingData || searching}
                       required
                     >
-                      <option value="">{loadingData ? 'Loading roles...' : 'Select a Job Role...'}</option>
+                      <option value="">{loadingData ? 'Loading roles...' : '— Select an Industry Job Role —'}</option>
                       {roles.map((role) => (
                         <option key={role.id} value={role.id}>
                           {role.title} ({role.requiredSkills.length} required skills)
                         </option>
                       ))}
                     </select>
+
+                    {/* Live Preview of Required Skills */}
+                    {selectedRole && selectedRole.requiredSkills.length > 0 && (
+                      <div className="talent-role-preview-box">
+                        <div className="talent-role-preview-header">
+                          <span>Required Competencies for {selectedRole.title}:</span>
+                        </div>
+                        <div className="talent-preview-chips">
+                          {selectedRole.requiredSkills.map((rs) => (
+                            <span key={rs.skillId} className="talent-preview-chip">
+                              <i className="fa fa-check" style={{ fontSize: '10px', marginRight: '4px' }}></i>
+                              {rs.skill?.name || 'Skill'}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="talent-role-field">
-                    <label>Select Required Competencies ({selectedSkillIds.length} selected) *</label>
-                    <div
-                      style={{
-                        maxHeight: '150px',
-                        overflowY: 'auto',
-                        padding: '10px',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: '8px',
-                        background: '#ffffff',
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '8px',
-                      }}
-                    >
-                      {availableSkills.map((s) => {
-                        const isSelected = selectedSkillIds.includes(s.id);
-                        return (
-                          <button
-                            type="button"
-                            key={s.id}
-                            className={`skill-filter-tab ${isSelected ? 'active' : ''}`}
-                            style={{ fontSize: '12px', padding: '4px 10px' }}
-                            onClick={() => toggleSkillSelection(s.id)}
-                          >
-                            {isSelected ? '✓ ' : '+ '}
-                            {s.name}
-                          </button>
-                        );
-                      })}
+                    <div className="talent-field-label">
+                      <span>Select Required Competencies ({selectedSkillIds.length} Selected) *</span>
+                      {selectedSkillIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSkillIds([])}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#ef4444',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textTransform: 'none',
+                          }}
+                        >
+                          Clear Selection
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="talent-competency-picker">
+                      {/* Search & Category Filter Controls */}
+                      <div className="talent-picker-controls">
+                        <input
+                          type="text"
+                          className="talent-skill-search-input"
+                          placeholder="Search competencies (e.g. React, Python, Docker)..."
+                          value={skillSearchQuery}
+                          onChange={(e) => setSkillSearchQuery(e.target.value)}
+                        />
+                        <div className="talent-category-pills">
+                          {categories.map((cat) => (
+                            <button
+                              type="button"
+                              key={cat}
+                              className={`talent-category-pill ${selectedCategory === cat ? 'active' : ''}`}
+                              onClick={() => setSelectedCategory(cat)}
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Interactive Skills Cloud */}
+                      <div className="talent-skills-cloud">
+                        {filteredSkills.length === 0 ? (
+                          <div style={{ padding: '10px', fontSize: '12px', color: '#94a3b8' }}>
+                            No competencies match your search query.
+                          </div>
+                        ) : (
+                          filteredSkills.map((s) => {
+                            const isSelected = selectedSkillIds.includes(s.id);
+                            return (
+                              <button
+                                type="button"
+                                key={s.id}
+                                className={`talent-skill-toggle-btn ${isSelected ? 'selected' : ''}`}
+                                onClick={() => toggleSkillSelection(s.id)}
+                              >
+                                <span>{isSelected ? '✓' : '+'}</span>
+                                {s.name}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Secondary Filters */}
-                <div className="talent-filters-grid">
-                  <div className="talent-filter-field">
-                    <label>Verification Filter Mode</label>
-                    <select
-                      className="talent-filter-select"
-                      value={matchMode}
-                      onChange={(e) => setMatchMode(e.target.value as any)}
-                    >
-                      <option value="ALL_DEMONSTRATED">Verified + Project Exposure (Standard)</option>
-                      <option value="VERIFIED_ONLY">Faculty-Verified Only</option>
-                    </select>
+                {/* Secondary Filters Section */}
+                <div className="talent-filters-section">
+                  <div className="talent-filters-header">
+                    <span>
+                      <i className="fa fa-sliders-h"></i> Candidate Filters & Verification Thresholds
+                    </span>
                   </div>
+                  <div className="talent-filters-grid">
+                    <div className="talent-filter-field">
+                      <label>Verification Filter</label>
+                      <select
+                        className="talent-filter-select"
+                        value={matchMode}
+                        onChange={(e) => setMatchMode(e.target.value as any)}
+                      >
+                        <option value="ALL_DEMONSTRATED">Verified + Project Exposure (Standard)</option>
+                        <option value="VERIFIED_ONLY">Faculty-Verified Only</option>
+                      </select>
+                    </div>
 
-                  <div className="talent-filter-field">
-                    <label>Minimum Match %</label>
-                    <select
-                      className="talent-filter-select"
-                      value={minMatch}
-                      onChange={(e) => setMinMatch(e.target.value)}
-                    >
-                      <option value="0">Any Match (&gt; 0%)</option>
-                      <option value="50">At Least 50% Match</option>
-                      <option value="75">High Readiness (75%+)</option>
-                      <option value="100">Full Alignment (100%)</option>
-                    </select>
-                  </div>
+                    <div className="talent-filter-field">
+                      <label>Minimum Match %</label>
+                      <select
+                        className="talent-filter-select"
+                        value={minMatch}
+                        onChange={(e) => setMinMatch(e.target.value)}
+                      >
+                        <option value="0">Any Match (&gt; 0%)</option>
+                        <option value="50">At Least 50% Match</option>
+                        <option value="75">High Readiness (75%+)</option>
+                        <option value="100">Full Alignment (100%)</option>
+                      </select>
+                    </div>
 
-                  <div className="talent-filter-field">
-                    <label>Student Name / PRN Search</label>
-                    <input
-                      type="text"
-                      className="talent-filter-input"
-                      placeholder="e.g. Alice, PRN 1032..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
+                    <div className="talent-filter-field">
+                      <label>Student Search</label>
+                      <input
+                        type="text"
+                        className="talent-filter-input"
+                        placeholder="Name or PRN..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
 
-                  <div className="talent-filter-field">
-                    <label>Department / Program</label>
-                    <input
-                      type="text"
-                      className="talent-filter-input"
-                      placeholder="e.g. Computer Science"
-                      value={departmentFilter}
-                      onChange={(e) => setDepartmentFilter(e.target.value)}
-                    />
-                  </div>
+                    <div className="talent-filter-field">
+                      <label>Department</label>
+                      <input
+                        type="text"
+                        className="talent-filter-input"
+                        placeholder="e.g. Computer Science"
+                        value={departmentFilter}
+                        onChange={(e) => setDepartmentFilter(e.target.value)}
+                      />
+                    </div>
 
-                  <div className="talent-filter-field">
-                    <label>Graduation Year</label>
-                    <input
-                      type="text"
-                      className="talent-filter-input"
-                      placeholder="e.g. 2026"
-                      value={gradYearFilter}
-                      onChange={(e) => setGradYearFilter(e.target.value)}
-                    />
+                    <div className="talent-filter-field">
+                      <label>Graduation Batch</label>
+                      <input
+                        type="text"
+                        className="talent-filter-input"
+                        placeholder="e.g. 2026"
+                        value={gradYearFilter}
+                        onChange={(e) => setGradYearFilter(e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ marginTop: '20px' }}>
+                {/* Actions Row */}
+                <div className="talent-actions-row">
                   <button type="submit" className="talent-search-submit" disabled={searching || loadingData}>
                     {searching ? (
                       <>
@@ -453,101 +596,145 @@ const AdminTalentSearchPage: React.FC = () => {
                       </>
                     )}
                   </button>
+                  <button
+                    type="button"
+                    className="talent-reset-btn"
+                    onClick={handleResetFilters}
+                    disabled={searching}
+                  >
+                    <i className="fa fa-undo"></i> Reset Filters
+                  </button>
+                  <span className="talent-filter-hint">
+                    <i className="fa fa-info-circle"></i> Evaluates students across faculty-verified competencies and project deliverables
+                  </span>
                 </div>
               </form>
             </section>
 
             {/* Results Section */}
             {results && (
-              <section className="admin-section talent-results-section">
+              <section className="talent-results-section">
                 <div className="talent-results-meta">
                   <div>
                     <h3>{results.targetTitle}</h3>
                     {results.targetDescription && <p>{results.targetDescription}</p>}
-                    <small style={{ color: '#64748b' }}>
-                      {results.verificationNote} · {results.totalCandidatesMatched} candidate(s) found out of {results.totalStudentsEvaluated} evaluated.
-                    </small>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span className="talent-meta-pill">
+                        <i className="fa fa-users"></i> {results.totalCandidatesMatched} Candidate(s) Found
+                      </span>
+                      <span className="talent-meta-pill">
+                        <i className="fa fa-chart-line"></i> {results.totalStudentsEvaluated} Evaluated
+                      </span>
+                      {results.verificationNote && (
+                        <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                          · {results.verificationNote}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <span className="talent-req-count">
+                    <i className="fa fa-layer-group"></i>
                     {results.totalRequiredSkills} Required Competenc{results.totalRequiredSkills === 1 ? 'y' : 'ies'}
                   </span>
                 </div>
 
                 {results.students.length === 0 ? (
-                  <div className="student-empty-state">
+                  <div className="student-empty-state" style={{ padding: '40px 20px', textAlign: 'center' }}>
+                    <i className="fa fa-user-slash" style={{ fontSize: '32px', color: '#94a3b8', marginBottom: '12px' }}></i>
                     <h3>No matching candidates found</h3>
-                    <p>Try adjusting your search criteria or switching Verification Mode to "Verified + Project Exposure".</p>
+                    <p>Try lowering the Minimum Match % threshold or switching the filter mode to "Verified + Project Exposure".</p>
                   </div>
                 ) : (
                   <div className="talent-cards-grid">
                     {results.students.map((student, index) => {
                       const isExpanded = expandedStudent === student.id;
+                      const matchClass =
+                        student.matchPercentage >= 75
+                          ? 'match-high'
+                          : student.matchPercentage >= 50
+                          ? 'match-medium'
+                          : 'match-low';
+
+                      const badgeClass =
+                        student.matchPercentage >= 75
+                          ? 'high'
+                          : student.matchPercentage >= 50
+                          ? 'medium'
+                          : 'low';
 
                       return (
-                        <article key={student.id} className="talent-student-card">
+                        <article key={student.id} className={`talent-student-card ${matchClass}`}>
+                          {/* Student Header */}
                           <div className="talent-student-header">
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                                <span style={{ fontSize: '11px', fontWeight: 800, color: '#4f46e5', background: '#eef2ff', padding: '2px 8px', borderRadius: '4px' }}>
-                                  #{index + 1} RANK
-                                </span>
-                                <h3 style={{ margin: 0 }}>{student.name}</h3>
+                            <div className="talent-student-identity">
+                              <div
+                                className="talent-student-avatar"
+                                style={{ background: getAvatarGradient(student.name) }}
+                              >
+                                {getInitials(student.name)}
                               </div>
-                              <p className="talent-student-email">{student.email}</p>
+                              <div className="talent-student-info">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span className="talent-rank-pill">#{index + 1} RANK</span>
+                                  <h3>{student.name}</h3>
+                                </div>
+                                <p className="talent-student-email">{student.email}</p>
 
-                              {student.headline && (
-                                <p style={{ margin: '4px 0', fontSize: '12px', color: '#4f46e5', fontWeight: 600 }}>
-                                  {student.headline}
-                                </p>
-                              )}
+                                {student.headline && (
+                                  <p className="talent-student-headline">
+                                    {student.headline}
+                                  </p>
+                                )}
 
-                              <div style={{ display: 'flex', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
-                                {student.department && (
-                                  <span style={{ fontSize: '11px', color: '#64748b' }}>
-                                    <i className="fa fa-graduation-cap"></i> {student.department}
-                                  </span>
-                                )}
-                                {student.graduationYear && (
-                                  <span style={{ fontSize: '11px', color: '#64748b' }}>
-                                    <i className="fa fa-calendar-alt"></i> Batch {student.graduationYear}
-                                  </span>
-                                )}
+                                <div className="talent-student-tags">
+                                  {student.studentIdNo && (
+                                    <span className="talent-meta-pill">
+                                      <i className="fa fa-id-card"></i> PRN: {student.studentIdNo}
+                                    </span>
+                                  )}
+                                  {student.department && (
+                                    <span className="talent-meta-pill">
+                                      <i className="fa fa-graduation-cap"></i> {student.department}
+                                    </span>
+                                  )}
+                                  {student.graduationYear && (
+                                    <span className="talent-meta-pill">
+                                      <i className="fa fa-calendar-alt"></i> Batch {student.graduationYear}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
-                            <div style={{ textAlign: 'right' }}>
-                              <div
-                                className="talent-match-badge"
-                                style={{
-                                  background: student.matchPercentage >= 75 ? '#dcfce7' : student.matchPercentage >= 50 ? '#fef3c7' : '#f1f5f9',
-                                  color: student.matchPercentage >= 75 ? '#166534' : student.matchPercentage >= 50 ? '#854d0e' : '#475569',
-                                }}
-                              >
-                                {student.matchPercentage}% MATCH
+                            {/* Match Score Gauge */}
+                            <div className="talent-match-box">
+                              <div className={`talent-match-badge ${badgeClass}`}>
+                                <i className="fa fa-percentage"></i> {student.matchPercentage}% MATCH
                               </div>
-                              <small style={{ display: 'block', marginTop: '4px', fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
-                                ✓ {student.verifiedMatchCount} Faculty-Verified
-                              </small>
+                              <span className="talent-verified-subtext">
+                                <i className="fa fa-check-circle"></i> {student.verifiedMatchCount} Faculty-Verified
+                              </span>
                             </div>
                           </div>
 
-                          {/* Action Links */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
-                            <span style={{ fontSize: '12px', color: '#64748b' }}>
-                              <i className="fa fa-folder"></i> <strong>{student.totalProjects}</strong> academic project(s)
+                          {/* Action Bar */}
+                          <div className="talent-card-subnav">
+                            <span style={{ fontSize: '12px', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <i className="fa fa-folder-open" style={{ color: '#4f46e5' }}></i>
+                              <strong>{student.totalProjects}</strong> Academic Project{student.totalProjects === 1 ? '' : 's'}
                             </span>
                             <button
                               type="button"
                               className="talent-passport-btn"
                               onClick={() => navigate(`/portfolio/${student.shareableSlug || student.id}`)}
                             >
-                              <i className="fa fa-id-badge"></i> View Skill Passport ↗
+                              <i className="fa fa-id-badge"></i> View Digital Portfolio ↗
                             </button>
                           </div>
 
                           {/* Skills Breakdown */}
-                          <div className="talent-skill-preview" style={{ marginTop: '12px' }}>
-                            <div>
+                          <div className="talent-skill-preview">
+                            <div className="talent-skill-group">
                               <span className="talent-skill-label">
                                 Matched Competencies ({student.matchedSkills.length}/{student.totalRequiredSkills})
                               </span>
@@ -560,30 +747,30 @@ const AdminTalentSearchPage: React.FC = () => {
                                     >
                                       {skill.isVerified ? (
                                         <>
-                                          <i className="fa fa-check-circle" style={{ color: '#10b981' }}></i>
-                                          {skill.name} <small style={{ fontWeight: 800 }}>({skill.level})</small>
+                                          <i className="fa fa-check-circle"></i>
+                                          {skill.name} <strong style={{ marginLeft: '2px' }}>({skill.level || 'VERIFIED'})</strong>
                                         </>
                                       ) : (
                                         <>
                                           <i className="fa fa-code-branch"></i>
-                                          {skill.name} <small>(Exposure)</small>
+                                          {skill.name} <small style={{ opacity: 0.8 }}>(Exposure)</small>
                                         </>
                                       )}
                                     </span>
                                   ))
                                 ) : (
-                                  <small style={{ color: '#94a3b8' }}>No required skills matched yet.</small>
+                                  <small style={{ color: '#94a3b8' }}>No required competencies matched yet.</small>
                                 )}
                               </div>
                             </div>
 
                             {student.missingSkills.length > 0 && (
-                              <div style={{ marginTop: '8px' }}>
+                              <div className="talent-skill-group">
                                 <span className="talent-skill-label">Competencies to Develop</span>
                                 <div className="talent-skill-tags">
                                   {student.missingSkills.map((skill) => (
-                                    <span className="missing" key={skill.id}>
-                                      {skill.name}
+                                    <span className="talent-skill-missing-tag" key={skill.id}>
+                                      <i className="fa fa-plus-circle" style={{ opacity: 0.6 }}></i> {skill.name}
                                     </span>
                                   ))}
                                 </div>
@@ -596,29 +783,35 @@ const AdminTalentSearchPage: React.FC = () => {
                             type="button"
                             className="talent-evidence-toggle"
                             onClick={() => setExpandedStudent(isExpanded ? null : student.id)}
-                            style={{ marginTop: '14px' }}
                           >
-                            {isExpanded ? 'Hide Supporting Evidence' : 'View Supporting Project Evidence'}
-                            <i className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`} style={{ marginLeft: '6px' }}></i>
+                            <span>
+                              <i className="fa fa-shield-alt" style={{ marginRight: '6px' }}></i>
+                              {isExpanded ? 'Hide Supporting Project Evidence' : 'View Supporting Project Evidence'}
+                            </span>
+                            <i className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`}></i>
                           </button>
 
                           {isExpanded && (
                             <div className="talent-evidence-panel">
                               {student.matchedSkills.length === 0 ? (
-                                <p>No project evidence available for required skills.</p>
+                                <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
+                                  No project evidence linked for required skills.
+                                </p>
                               ) : (
                                 student.matchedSkills.map((skill) => (
                                   <div className="talent-evidence-skill" key={skill.id}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                      <strong>{skill.name}</strong>
+                                      <strong style={{ fontSize: '13px', color: '#1e293b' }}>
+                                        {skill.name}
+                                      </strong>
                                       {skill.isVerified && skill.verifiedBy && (
-                                        <small style={{ color: '#059669', fontWeight: 600 }}>
-                                          Verified by {skill.verifiedBy.name}
+                                        <small style={{ color: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                          <i className="fa fa-check-circle"></i> Verified by {skill.verifiedBy.name}
                                         </small>
                                       )}
                                     </div>
                                     {skill.feedback && (
-                                      <p style={{ margin: '4px 0 8px 0', fontSize: '11px', fontStyle: 'italic', color: '#166534' }}>
+                                      <p style={{ margin: '6px 0', fontSize: '11.5px', fontStyle: 'italic', color: '#166534', background: '#f0fdf4', padding: '6px 10px', borderRadius: '6px' }}>
                                         &ldquo;{skill.feedback}&rdquo;
                                       </p>
                                     )}
@@ -626,9 +819,11 @@ const AdminTalentSearchPage: React.FC = () => {
                                     <div className="talent-evidence-projects">
                                       {skill.projects.map((proj) => (
                                         <div className="talent-evidence-project" key={`${skill.id}-${proj.id}`}>
-                                          <i className="fa fa-folder-open"></i>
-                                          <span>{proj.title}</span>
-                                          <small>{proj.status.replace(/_/g, ' ')}</small>
+                                          <i className="fa fa-folder-open" style={{ color: '#6366f1' }}></i>
+                                          <span style={{ fontWeight: 600, color: '#334155' }}>{proj.title}</span>
+                                          <small style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', textTransform: 'capitalize' }}>
+                                            {proj.status.toLowerCase().replace(/_/g, ' ')}
+                                          </small>
                                         </div>
                                       ))}
                                     </div>
@@ -651,27 +846,46 @@ const AdminTalentSearchPage: React.FC = () => {
             TAB 2: UNIVERSITY SKILL GAP & READINESS ANALYTICS
            ───────────────────────────────────────────────────────────── */}
         {activeTab === 'analytics' && (
-          <section className="admin-section">
+          <section>
             {loadingAnalytics ? (
-              <div className="portfolio-loading">
-                <i className="fa fa-spinner fa-spin"></i>
-                <p>Computing university-wide skill gap and readiness analytics...</p>
+              <div className="portfolio-loading" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                <i className="fa fa-spinner fa-spin" style={{ fontSize: '28px', color: '#4f46e5' }}></i>
+                <p style={{ marginTop: '12px', fontSize: '14px', color: '#64748b' }}>
+                  Computing university-wide skill gap and readiness analytics...
+                </p>
               </div>
             ) : analytics ? (
               <>
                 {/* Metrics Summary Row */}
                 <div className="analytics-metrics-row">
                   <div className="analytics-metric-card">
-                    <h4>Total Active Students</h4>
-                    <div className="analytics-metric-val">{analytics.totalStudents}</div>
+                    <div className="analytics-metric-icon indigo">
+                      <i className="fa fa-user-graduate"></i>
+                    </div>
+                    <div className="analytics-metric-content">
+                      <h4>Total Active Students</h4>
+                      <div className="analytics-metric-val">{analytics.totalStudents}</div>
+                    </div>
                   </div>
+
                   <div className="analytics-metric-card">
-                    <h4>Industry Job Roles</h4>
-                    <div className="analytics-metric-val">{analytics.totalJobRoles}</div>
+                    <div className="analytics-metric-icon emerald">
+                      <i className="fa fa-briefcase"></i>
+                    </div>
+                    <div className="analytics-metric-content">
+                      <h4>Industry Job Roles</h4>
+                      <div className="analytics-metric-val">{analytics.totalJobRoles}</div>
+                    </div>
                   </div>
+
                   <div className="analytics-metric-card">
-                    <h4>Catalogue Competencies</h4>
-                    <div className="analytics-metric-val">{analytics.totalActiveSkills}</div>
+                    <div className="analytics-metric-icon amber">
+                      <i className="fa fa-award"></i>
+                    </div>
+                    <div className="analytics-metric-content">
+                      <h4>Catalogue Competencies</h4>
+                      <div className="analytics-metric-val">{analytics.totalActiveSkills}</div>
+                    </div>
                   </div>
                 </div>
 
@@ -679,19 +893,19 @@ const AdminTalentSearchPage: React.FC = () => {
                 <div className="analytics-split-grid">
                   {/* Top Shortages Card */}
                   <div className="analytics-card">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <div className="analytics-card-header">
                       <i className="fa fa-exclamation-triangle" style={{ color: '#ef4444', fontSize: '18px' }}></i>
                       <h3>Top Institutional Skill Shortages</h3>
                     </div>
-                    <p>Skills in high industry role demand with a shortage of verified students.</p>
+                    <p>High industry demand competencies with a shortage of verified student candidates.</p>
 
                     {analytics.topShortages.length === 0 ? (
-                      <p>No critical skill shortages identified.</p>
+                      <p style={{ color: '#94a3b8' }}>No critical skill shortages identified.</p>
                     ) : (
                       analytics.topShortages.map((s) => (
                         <div key={s.id} className="gap-bar-container">
                           <div className="gap-bar-header">
-                            <span>{s.name} ({s.category})</span>
+                            <span>{s.name} <small style={{ color: '#64748b' }}>({s.category})</small></span>
                             <span style={{ color: '#ef4444' }}>{s.gapPercentage}% Shortage Gap</span>
                           </div>
                           <div className="gap-bar-track">
@@ -700,8 +914,8 @@ const AdminTalentSearchPage: React.FC = () => {
                               style={{ width: `${s.gapPercentage}%` }}
                             ></div>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-                            <span>Required in {s.requiredInRoles} role(s)</span>
+                          <div className="gap-bar-subinfo">
+                            <span><i className="fa fa-briefcase"></i> Required in {s.requiredInRoles} role(s)</span>
                             <span>{s.verifiedStudents} verified · {s.exposureStudents} exposure</span>
                           </div>
                         </div>
@@ -711,17 +925,17 @@ const AdminTalentSearchPage: React.FC = () => {
 
                   {/* Top Verified Competencies */}
                   <div className="analytics-card">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <div className="analytics-card-header">
                       <i className="fa fa-award" style={{ color: '#10b981', fontSize: '18px' }}></i>
                       <h3>Top Faculty-Verified Competencies</h3>
                     </div>
-                    <p>Most verified skills across academic projects and curriculum.</p>
+                    <p>Most widely verified skills across supervised student projects and coursework.</p>
 
                     {analytics.topVerified.map((s) => (
                       <div key={s.id} className="gap-bar-container">
                         <div className="gap-bar-header">
-                          <span>{s.name} ({s.category})</span>
-                          <span style={{ color: '#059669' }}>{s.verifiedStudents} Students Verified</span>
+                          <span>{s.name} <small style={{ color: '#64748b' }}>({s.category})</small></span>
+                          <span style={{ color: '#059669' }}>{s.verifiedStudents} Verified</span>
                         </div>
                         <div className="gap-bar-track">
                           <div
@@ -731,7 +945,7 @@ const AdminTalentSearchPage: React.FC = () => {
                             }}
                           ></div>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                        <div className="gap-bar-subinfo">
                           <span>{s.exposureStudents} with project exposure</span>
                           <span>In {s.requiredInRoles} target role(s)</span>
                         </div>
@@ -741,44 +955,53 @@ const AdminTalentSearchPage: React.FC = () => {
                 </div>
 
                 {/* Job Role Placement Pipeline Table */}
-                <div className="analytics-card" style={{ marginTop: '20px' }}>
-                  <h3>Industry Role Readiness Pipeline</h3>
+                <div className="analytics-card">
+                  <div className="analytics-card-header">
+                    <i className="fa fa-table" style={{ color: '#4f46e5', fontSize: '18px' }}></i>
+                    <h3>Industry Role Readiness Pipeline</h3>
+                  </div>
                   <p>Distribution of student candidates ready for immediate placement vs progressing.</p>
 
-                  <table className="talent-table">
-                    <thead>
-                      <tr>
-                        <th>Job Role</th>
-                        <th>Required Skills</th>
-                        <th>Ready Candidates (&ge; 80% Match)</th>
-                        <th>Progressing (50–79%)</th>
-                        <th>Developing (&lt; 50%)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analytics.roleReadiness.map((role) => (
-                        <tr key={role.id}>
-                          <td><strong>{role.title}</strong></td>
-                          <td>{role.totalRequiredSkills}</td>
-                          <td>
-                            <span style={{ color: '#16a34a', fontWeight: 700 }}>
-                              {role.readyCount} candidates
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ color: '#d97706', fontWeight: 600 }}>
-                              {role.progressingCount} candidates
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ color: '#64748b' }}>
-                              {role.developingCount} candidates
-                            </span>
-                          </td>
+                  <div className="talent-table-container">
+                    <table className="talent-table">
+                      <thead>
+                        <tr>
+                          <th>Job Role</th>
+                          <th>Required Skills</th>
+                          <th>Ready (&ge; 80% Match)</th>
+                          <th>Progressing (50–79%)</th>
+                          <th>Developing (&lt; 50%)</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {analytics.roleReadiness.map((role) => (
+                          <tr key={role.id}>
+                            <td>
+                              <strong>{role.title}</strong>
+                            </td>
+                            <td>
+                              <span className="talent-meta-pill">{role.totalRequiredSkills} Skills</span>
+                            </td>
+                            <td>
+                              <span style={{ color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <i className="fa fa-check-circle"></i> {role.readyCount} candidates
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ color: '#d97706', fontWeight: 600 }}>
+                                {role.progressingCount} candidates
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ color: '#64748b' }}>
+                                {role.developingCount} candidates
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </>
             ) : null}
