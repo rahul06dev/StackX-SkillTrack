@@ -7,6 +7,7 @@ import AddColumnModal from '../components/AddColumnModal';
 import ManageTeamModal from '../components/ManageTeamModal';
 import ProjectSkills from '../components/ProjectSkills';
 import ActivityHistoryModal from '../components/ActivityHistoryModal';
+import '../auth.css';
 
 interface ProjectPerson {
   id: string;
@@ -135,13 +136,27 @@ const ProjectBoardPage = () => {
     }, 4500);
   }, []);
 
+  const isCompletedCol = useCallback((col?: { title: string; colorClass?: string }) => {
+    if (!col) return false;
+    const t = (col.title || '').trim().toLowerCase();
+    const c = (col.colorClass || '').trim().toLowerCase();
+    return t === 'completed' || t === 'done' || c === 'completed' || c === 'col-done';
+  }, []);
+
+  const isInReviewCol = useCallback((col?: { title: string; colorClass?: string }) => {
+    if (!col) return false;
+    const t = (col.title || '').trim().toLowerCase();
+    const c = (col.colorClass || '').trim().toLowerCase();
+    return t === 'in review' || t === 'code review' || t === 'review' || c === 'in-review' || c === 'col-review';
+  }, []);
+
   const completedColumnId = useMemo(
-    () => columns.find((c) => c.title === 'Completed')?.id,
-    [columns]
+    () => columns.find((c) => isCompletedCol(c))?.id,
+    [columns, isCompletedCol]
   );
 
   const inProgressColumnId = useMemo(
-    () => columns.find((c) => c.title === 'In Progress')?.id,
+    () => columns.find((c) => (c.title || '').trim().toLowerCase() === 'in progress' || c.colorClass === 'in-progress')?.id,
     [columns]
   );
 
@@ -189,12 +204,16 @@ const ProjectBoardPage = () => {
         userRole = null;
       }
 
-      if (destCol.title === 'Completed' && userRole === 'STUDENT') {
+      const isDestCompleted = isCompletedCol(destCol);
+      const isDestInReview = isInReviewCol(destCol);
+      const isSourceInReview = isInReviewCol(sourceCol);
+
+      if (isDestCompleted && userRole === 'STUDENT') {
         showToast('error', 'Permission Denied: Only Faculty or Admin can mark a task as Completed.');
         return;
       }
 
-      if (destCol.title === 'Completed' && sourceCol.title !== 'In Review') {
+      if (isDestCompleted && !isSourceInReview) {
         showToast('error', 'Workflow Notice: A task must be moved to "In Review" before it can be Completed.');
         return;
       }
@@ -250,9 +269,9 @@ const ProjectBoardPage = () => {
           throw new Error(errorData.message || 'Failed to move task.');
         }
 
-        if (destCol.title === 'In Review') {
+        if (isDestInReview) {
           showToast('success', 'Task submitted for Faculty Review! Your supervisor will be notified.');
-        } else if (destCol.title === 'Completed') {
+        } else if (isDestCompleted) {
           showToast('success', 'Task marked as Completed! Great progress.');
         }
       } catch (err) {
@@ -261,7 +280,7 @@ const ProjectBoardPage = () => {
         showToast('error', err instanceof Error ? err.message : 'Could not move task. Reverting position.');
       }
     },
-    [columns, showToast]
+    [columns, showToast, isCompletedCol, isInReviewCol]
   );
 
   // --- TASK STATE HANDLERS ---

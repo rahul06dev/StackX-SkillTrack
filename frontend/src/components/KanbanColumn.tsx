@@ -135,10 +135,10 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     };
 
     return (
-        <div className="kanban-column flex flex-col rounded-xl overflow-hidden bg-gray-50 border border-gray-200 shadow-sm">
+        <div className={`kanban-column flex flex-col rounded-xl overflow-hidden bg-gray-50 border border-gray-200 shadow-sm ${colorClass ? `column-${colorClass}` : ''}`}>
             {/* Column Header */}
             <div
-                className={`column-header flex justify-between items-center p-4 text-white ${colorClass}`}
+                className={`column-header flex justify-between items-center p-4 text-white ${colorClass || ''}`}
             >
                 <div className="flex items-center gap-2">
                     <span className="font-semibold text-lg">{title}</span>

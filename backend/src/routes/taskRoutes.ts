@@ -555,10 +555,12 @@ const updateTaskHandler = async (
                 // COMPLETED PROTECTION
                 // ==========================================
 
-                if (
-                    targetColumn.title ===
-                    'Completed'
-                ) {
+                const isTargetCompleted =
+                    targetColumn.title === 'Completed' ||
+                    targetColumn.title === 'Done' ||
+                    targetColumn.colorClass === 'completed';
+
+                if (isTargetCompleted) {
                     // Students cannot complete tasks.
                     if (
                         req.user?.role ===
@@ -572,10 +574,12 @@ const updateTaskHandler = async (
 
                     // Faculty/Admin can only complete
                     // tasks currently in In Review.
-                    if (
-                        existingTask.column.title !==
-                        'In Review'
-                    ) {
+                    const isSourceInReview =
+                        existingTask.column.title === 'In Review' ||
+                        existingTask.column.title === 'Code Review' ||
+                        existingTask.column.colorClass === 'in-review';
+
+                    if (!isSourceInReview) {
                         return res.status(403).json({
                             message:
                                 'A task must be moved to In Review before it can be Completed.',
@@ -710,13 +714,23 @@ const reorderTaskHandler = async (
         }
 
         // Workflow restriction: Students cannot move tasks to Completed
-        if (targetColumn.title === 'Completed') {
+        const isTargetCompleted =
+            targetColumn.title === 'Completed' ||
+            targetColumn.title === 'Done' ||
+            targetColumn.colorClass === 'completed';
+
+        if (isTargetCompleted) {
             if (req.user?.role === 'STUDENT') {
                 return res.status(403).json({
                     message: 'Only Faculty or Admin can mark a task as Completed.',
                 });
             }
-            if (task.column.title !== 'In Review') {
+            const isSourceInReview =
+                task.column.title === 'In Review' ||
+                task.column.title === 'Code Review' ||
+                task.column.colorClass === 'in-review';
+
+            if (!isSourceInReview) {
                 return res.status(403).json({
                     message: 'A task must be moved to In Review before it can be Completed.',
                 });
