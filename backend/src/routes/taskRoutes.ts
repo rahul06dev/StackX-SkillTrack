@@ -114,6 +114,7 @@ const getTaskWithProject = async (
                     id: true,
                     title: true,
                     projectId: true,
+                    colorClass: true,
                 },
             },
         },
@@ -515,6 +516,7 @@ const updateTaskHandler = async (
                             id: true,
                             title: true,
                             projectId: true,
+                            colorClass: true,
                         },
                     });
 
@@ -698,7 +700,7 @@ const reorderTaskHandler = async (
 
         const targetColumn = await prisma.column.findUnique({
             where: { id: targetColumnId },
-            select: { id: true, title: true, projectId: true },
+            select: { id: true, title: true, projectId: true, colorClass: true },
         });
 
         if (!targetColumn) {
